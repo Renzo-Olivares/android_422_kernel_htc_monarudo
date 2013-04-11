@@ -38,7 +38,10 @@
 #include <linux/rcupdate.h>
 #include <linux/notifier.h>
 
+<<<<<<< HEAD
 extern void show_meminfo(void);
+=======
+>>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
 	0,
@@ -55,7 +58,29 @@ static int lowmem_minfree[6] = {
 };
 static int lowmem_minfree_size = 4;
 
+static size_t lowmem_fork_boost_minfree[6] = {
+	0,
+	0,
+	0,
+	5120,
+	6177,
+	6177,
+};
+static int lowmem_fork_boost_minfree_size = 6;
+static size_t minfree_tmp[6] = {0, 0, 0, 0, 0, 0};
+
+static size_t fork_boost_adj[6] = {
+	0,
+	2,
+	4,
+	7,
+	9,
+	12
+};
+
 static unsigned long lowmem_deathpending_timeout;
+static unsigned long lowmem_fork_boost_timeout;
+static uint32_t lowmem_fork_boost = 1;
 
 #define lowmem_print(level, x...)			\
 	do {						\
@@ -63,6 +88,7 @@ static unsigned long lowmem_deathpending_timeout;
 			printk(x);			\
 	} while (0)
 
+<<<<<<< HEAD
 static void dump_tasks(void)
 {
        struct task_struct *p;
@@ -83,6 +109,43 @@ static void dump_tasks(void)
        }
 }
 
+=======
+static int
+task_fork_notify_func(struct notifier_block *self, unsigned long val, void *data);
+
+static struct notifier_block task_fork_nb = {
+	.notifier_call = task_fork_notify_func,
+};
+
+static int
+task_fork_notify_func(struct notifier_block *self, unsigned long val, void *data)
+{
+	lowmem_fork_boost_timeout = jiffies + (HZ << 1);
+
+	return NOTIFY_OK;
+}
+
+static void dump_tasks(void)
+{
+	struct task_struct *p;
+	struct task_struct *task;
+
+	pr_info("[ pid ]   uid  total_vm      rss cpu oom_adj  name\n");
+	for_each_process(p) {
+		task = find_lock_task_mm(p);
+		if (!task) {
+			continue;
+		}
+
+		pr_info("[%5d] %5d  %8lu %8lu %3u     %3d  %s\n",
+				task->pid, task_uid(task),
+				task->mm->total_vm, get_mm_rss(task->mm),
+				task_cpu(task), task->signal->oom_adj, task->comm);
+		task_unlock(task);
+	}
+}
+
+>>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
 	struct task_struct *tsk;
@@ -98,18 +161,43 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	int other_free = global_page_state(NR_FREE_PAGES);
 	int other_file = global_page_state(NR_FILE_PAGES) -
 		global_page_state(NR_SHMEM) - global_page_state(NR_MLOCK);
+<<<<<<< HEAD
+=======
+	int fork_boost = 0;
+	int *adj_array;
+	size_t *min_array;
+
+	if (lowmem_fork_boost &&
+		time_before_eq(jiffies, lowmem_fork_boost_timeout)) {
+		for (i = 0; i < lowmem_minfree_size; i++)
+			minfree_tmp[i] = lowmem_minfree[i] + lowmem_fork_boost_minfree[i];
+
+		adj_array = fork_boost_adj;
+		min_array = minfree_tmp;
+	}
+	else {
+		adj_array = lowmem_adj;
+		min_array = lowmem_minfree;
+	}
+>>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 
 	if (lowmem_adj_size < array_size)
 		array_size = lowmem_adj_size;
 	if (lowmem_minfree_size < array_size)
 		array_size = lowmem_minfree_size;
+
 	for (i = 0; i < array_size; i++) {
-		if (other_free < lowmem_minfree[i] &&
-		    other_file < lowmem_minfree[i]) {
-			min_score_adj = lowmem_adj[i];
+		if (other_free < min_array[i] &&
+		    other_file < min_array[i]) {
+			min_score_adj = adj_array[i];
+			fork_boost = lowmem_fork_boost_minfree[i];
 			break;
 		}
 	}
+<<<<<<< HEAD
+=======
+
+>>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 	if (sc->nr_to_scan > 0)
 		lowmem_print(3, "lowmem_shrink %lu, %x, ofree %d %d, ma %d\n",
 				sc->nr_to_scan, sc->gfp_mask, other_free,
@@ -169,6 +257,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			     p->pid, p->comm, selected_oom_adj, oom_score_adj, tasksize);
 	}
 	if (selected) {
+<<<<<<< HEAD
 		lowmem_print(1, "send sigkill to %d (%s), oom_adj %d, score_adj %d, size %d\n",
 			     selected->pid, selected->comm, selected_oom_adj,
 			     selected_oom_score_adj, selected_tasksize);
@@ -176,6 +265,17 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		if (selected_oom_adj < 7)
 		{
 			show_meminfo();
+=======
+		lowmem_print(1, "[%s] send sigkill to %d (%s), oom_adj %d, score_adj %d,"
+			" min_score_adj %d, size %dK, free %dK, file %dK, fork_boost %dK\n",
+			     current->comm, selected->pid, selected->comm,
+			     selected_oom_adj, selected_oom_score_adj,
+			     min_score_adj, selected_tasksize << 2,
+			     other_free << 2, other_file << 2, fork_boost << 2);
+		lowmem_deathpending_timeout = jiffies + HZ;
+		if (selected_oom_adj < 7)
+		{
+>>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 			dump_tasks();
 		}
 		send_sig(SIGKILL, selected, 0);
@@ -195,6 +295,7 @@ static struct shrinker lowmem_shrinker = {
 
 static int __init lowmem_init(void)
 {
+	task_fork_register(&task_fork_nb);
 	register_shrinker(&lowmem_shrinker);
 	return 0;
 }
@@ -202,6 +303,7 @@ static int __init lowmem_init(void)
 static void __exit lowmem_exit(void)
 {
 	unregister_shrinker(&lowmem_shrinker);
+	task_fork_unregister(&task_fork_nb);
 }
 
 module_param_named(cost, lowmem_shrinker.seeks, int, S_IRUGO | S_IWUSR);
@@ -210,6 +312,9 @@ module_param_array_named(adj, lowmem_adj, int, &lowmem_adj_size,
 module_param_array_named(minfree, lowmem_minfree, uint, &lowmem_minfree_size,
 			 S_IRUGO | S_IWUSR);
 module_param_named(debug_level, lowmem_debug_level, uint, S_IRUGO | S_IWUSR);
+module_param_named(fork_boost, lowmem_fork_boost, uint, S_IRUGO | S_IWUSR);
+module_param_array_named(fork_boost_minfree, lowmem_fork_boost_minfree, uint,
+			 &lowmem_fork_boost_minfree_size, S_IRUGO | S_IWUSR);
 
 module_init(lowmem_init);
 module_exit(lowmem_exit);
