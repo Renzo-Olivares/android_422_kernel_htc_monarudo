@@ -13,8 +13,6 @@
 #ifndef _VCD_DRIVER_PROPERTY_H_
 #define _VCD_DRIVER_PROPERTY_H_
 
-#include <linux/types.h>
-
 #define VCD_START_BASE       0x0
 #define VCD_I_LIVE           (VCD_START_BASE + 0x1)
 #define VCD_I_CODEC          (VCD_START_BASE + 0x2)
@@ -57,15 +55,10 @@
 #define VCD_I_SLICE_DELIVERY_MODE (VCD_START_BASE + 0x27)
 #define VCD_I_VOP_TIMING_CONSTANT_DELTA (VCD_START_BASE + 0x28)
 #define VCD_I_SET_TURBO_CLK (VCD_START_BASE + 0x29)
-#define VCD_I_H263_PLUSPTYPE (VCD_START_BASE + 0x2C)
-#define VCD_I_LTR_MODE (VCD_START_BASE + 0x2D)
-#define VCD_I_LTR_COUNT (VCD_START_BASE + 0x2E)
-#define VCD_I_LTR_PERIOD (VCD_START_BASE + 0x2F)
-#define VCD_I_LTR_USE (VCD_START_BASE + 0x30)
-#define VCD_I_CAPABILITY_LTR_COUNT (VCD_START_BASE + 0x31)
-#define VCD_I_LTR_MARK (VCD_START_BASE + 0x32)
-#define VCD_I_SET_EXT_METABUFFER (VCD_START_BASE + 0x33)
-#define VCD_I_FREE_EXT_METABUFFER (VCD_START_BASE + 0x34)
+#define VCD_I_SET_EXT_METABUFFER (VCD_START_BASE + 0x2C)
+#define VCD_I_FREE_EXT_METABUFFER (VCD_START_BASE + 0x2D)
+#define VCD_I_ENABLE_SEC_METADATA (VCD_START_BASE + 0x2E)
+
 
 #define VCD_START_REQ      (VCD_START_BASE + 0x1000)
 #define VCD_I_REQ_IFRAME   (VCD_START_REQ + 0x1)
@@ -123,12 +116,10 @@ enum vcd_perf_level {
 #define VCD_METADATA_VC1            0x040
 #define VCD_METADATA_PASSTHROUGH    0x080
 #define VCD_METADATA_ENC_SLICE      0x100
-#define VCD_METADATA_LTR_INFO       0x200
 
 #define VCD_METADATA_EXT_DATA       0x0800
 #define VCD_METADATA_USER_DATA      0x1000
 #define VCD_METADATA_SEPARATE_BUF   0x2000
-
 
 struct vcd_property_meta_data_enable {
 	u32 meta_data_enable_flag;
@@ -158,7 +149,8 @@ enum vcd_yuv_buffer_format {
 	VCD_BUFFER_FORMAT_NV12      = 0x1,
 	VCD_BUFFER_FORMAT_TILE_4x2    = 0x2,
 	VCD_BUFFER_FORMAT_NV12_16M2KA = 0x3,
-	VCD_BUFFER_FORMAT_TILE_1x1    = 0x4
+	VCD_BUFFER_FORMAT_TILE_1x1    = 0x4,
+	VCD_BUFFER_FORMAT_NV21_16M2KA = 0x5
 };
 
 struct vcd_property_buffer_format {
@@ -305,10 +297,6 @@ struct vcd_property_qp_range {
 	u32              min_qp;
 };
 
-struct vcd_property_plusptype {
-	u32              plusptype_enable;
-};
-
 struct vcd_property_session_qp {
 	u32 i_frame_qp;
 	u32 p_frame_qp;
@@ -391,34 +379,6 @@ struct vcd_property_sps_pps_for_idr_enable {
 	u32 sps_pps_for_idr_enable_flag;
 };
 
-struct vcd_property_range_type {
-	u32 min;
-	u32 max;
-	u32 step_size;
-};
-
-enum vcd_property_ltrmode {
-	VCD_LTR_MODE_DISABLE = 0,
-	VCD_LTR_MODE_MANUAL  = 1,
-	VCD_LTR_MODE_AUTO    = 2,
-	VCD_LTR_MODE_MAX     = 0x7fffffff
-};
-
-struct vcd_property_ltrmode_type {
-	enum vcd_property_ltrmode ltr_mode;
-};
-
-struct vcd_property_ltrcount_type {
-	u32 ltr_count;
-};
-
-struct vcd_property_ltrperiod_type {
-	u32 ltr_period;
-};
-
-struct vcd_property_ltruse_type {
-	u32 ltr_id;
-	u32 ltr_frames;
 };
 
 struct vcd_property_meta_buffer {
