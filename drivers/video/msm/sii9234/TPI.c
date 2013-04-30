@@ -30,11 +30,12 @@
 static unsigned long rsenCheckTimeout = 0;
 static unsigned long deglitchTimeout = 0;
 static int rsenCount = 0;
+static int cbusErrCount = 0;
 static int WR_Dcap_Rdy_Int_Done = false;
 static bool IsEstablished = false;
 extern bool g_bProbe;
 extern bool disable_interswitch;
-extern u8 dbg_drv_str_a3, dbg_drv_str_on;
+extern u8 dbg_drv_str_a3, dbg_drv_str_a6, dbg_drv_str_on;
 
 
 static	uint8_t	fwPowerState = POWER_STATE_FIRST_INIT;
@@ -99,6 +100,8 @@ static  bool	HDCPSuccess;
 void    ProcessMhlStatus(bool, bool);
 #endif
 
+extern void sii9234_request_abort(void);
+
 #define	APPLY_PLL_RECOVERY
 
 #ifdef APPLY_PLL_RECOVERY
@@ -139,6 +142,7 @@ bool TPI_Init(void)
 {
 	fwPowerState = POWER_STATE_FIRST_INIT;
 	WR_Dcap_Rdy_Int_Done = false;
+	cbusErrCount = 0;
 	IsEstablished = false;
 	HDCPSuccess = false;
 	if(!g_bProbe) {
@@ -411,11 +415,13 @@ static void WriteInitialRegisterValues(void)
 	I2C_WriteByte(TPI_SLAVE_ADDR, 0xA1, 0xFC);
 
 	
-	if(dbg_drv_str_on)
+	if(dbg_drv_str_on){
 		I2C_WriteByte(TPI_SLAVE_ADDR, 0xA3, dbg_drv_str_a3);
-	else
+		I2C_WriteByte(TPI_SLAVE_ADDR, 0xA6, dbg_drv_str_a6);
+	}else{
 		I2C_WriteByte(TPI_SLAVE_ADDR, 0xA3, 0xEB);
-	I2C_WriteByte(TPI_SLAVE_ADDR, 0xA6, 0x0C);
+		I2C_WriteByte(TPI_SLAVE_ADDR, 0xA6, 0x0C);
+	}
 
 	I2C_WriteByte(TPI_SLAVE_ADDR, 0x2B, 0x01);
 
@@ -663,6 +669,7 @@ void change_driving_strength(byte reg_a3, byte reg_a6)
 	
 	if( dbg_drv_str_on) {
 		TPI_DEBUG_PRINT(("Drv: %s debuging driving str 0xA3 = %x\n", __func__, dbg_drv_str_a3));
+		TPI_DEBUG_PRINT(("Drv: %s debuging driving str 0xA6 = %x\n", __func__, dbg_drv_str_a6));
 		return;
 	}
 	TPI_DEBUG_PRINT(("Drv: %s 0xA3 = %x 0xA6 = %x\n",
@@ -992,6 +999,7 @@ static uint8_t CBusProcessErrors(uint8_t intStatus)
 	return(result);
 }
 
+
 static void MhlCbusIsr(void)
 {
 	uint8_t		cbusInt;
@@ -1019,10 +1027,22 @@ static void MhlCbusIsr(void)
 	}
 
 	if ((cbusInt & BIT_5) || (cbusInt & BIT_6)) {
-		if (!WR_Dcap_Rdy_Int_Done && (cbusInt&BIT_5))
+		if (!WR_Dcap_Rdy_Int_Done && (cbusInt&BIT_5)) {
+			TPI_DEBUG_PRINT(("Drv:0x0A:%02X, 0x0D:%02X, 0x09:%02X\n",
+					(int)ReadByteCBUS(0x0A),
+					(int)ReadByteCBUS(0x0D),
+					(int)ReadByteCBUS(0x09)));
+			if (cbusErrCount++ >= 10) {
+				cbusErrCount = 0;
+				sii9234_request_abort();
+			}
 			return; 
+		}
 		gotData[0] = CBusProcessErrors(cbusInt);
 	}
+
+	
+	cbusErrCount = 0;
 
 	if (cbusInt & BIT_4) {
 		TPI_DEBUG_PRINT(("Drv: MSC_REQ_DONE\n"));

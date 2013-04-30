@@ -34,6 +34,7 @@
 #include <linux/debugfs.h>
 #include <linux/types.h>
 #include <mach/cable_detect.h>
+#include <linux/async.h>
 
 #include "sii9234.h"
 #include "TPI.h"
@@ -61,6 +62,7 @@ typedef struct {
 	void (*mhl_1v2_power)(bool enable);
 	int  (*mhl_power_vote)(bool enable);
 	int (*enable_5v)(int on);
+	int (*mhl_lpm_power)(bool on);
 	struct delayed_work init_delay_work;
 	struct delayed_work init_complete_work;
 	struct delayed_work irq_timeout_work;
@@ -99,8 +101,13 @@ static bool need_simulate_cable_out = false;
 #ifdef CONFIG_INTERNAL_CHARGING_SUPPORT
 static bool g_bPollDetect = false;
 #endif
-static struct dentry *dbg_entry_dir, *dbg_entry_a3, *dbg_entry_dbg_on;
-u8 dbg_drv_str_a3 = 0xEB, dbg_drv_str_on = 0;
+static bool g_bLowPowerModeOn = false;
+
+static struct dentry *dbg_entry_dir, *dbg_entry_a3, *dbg_entry_a6, *dbg_entry_dbg_on;
+static struct dentry *dbg_entry_con_test_timeout, *dbg_entry_con_test_on;
+
+u8 dbg_drv_str_a3 = 0xEB, dbg_drv_str_a6 = 0x0C, dbg_drv_str_on = 0;
+u8 dbg_con_test_timeout = 10, dbg_con_test_on = 0;
 void hdmi_set_switch_state(bool enable);
 
 #define MHL_RCP_KEYEVENT
@@ -152,6 +159,9 @@ void update_mhl_status(bool isMHL, enum usb_connect_type statMHL)
 		__func__, isMHL?"":"NOT ", statMHL);
 	pInfo->isMHL = isMHL;
 	pInfo->statMHL = statMHL;
+
+	if(!isMHL)
+		sii9234_power_vote(false);
 
 	queue_work(pInfo->wq, &pInfo->mhl_notifier_work);
 
@@ -319,7 +329,8 @@ static void sii9234_irq_do_work(struct work_struct *work)
 			irq_jiffies = jiffies;
 			
 			need_simulate_cable_out = false;
-			cancel_delayed_work(&pInfo->irq_timeout_work);
+			if(!dbg_con_test_on)
+				cancel_delayed_work(&pInfo->irq_timeout_work);
 			SiiMhlTxGetEvents(&event, &eventParameter);
 			ProcessRcp(event, eventParameter);
 		}
@@ -345,6 +356,7 @@ void sii9234_disableIRQ(void)
 int sii9234_power_vote(bool enable)
 {
 	T_MHL_SII9234_INFO *pInfo = sii9234_info_ptr;
+
 	if (!pInfo)
 		return 0;
 	if (pInfo->mhl_power_vote) {
@@ -447,9 +459,14 @@ void sii9234_mhl_device_wakeup(void)
 
 	PR_DISP_INFO("sii9234_mhl_device_wakeup()\n");
 
+	mutex_lock(&mhl_early_suspend_sem);
+
+	sii9234_power_vote(true);
+
 	if (!g_bInitCompleted) {
 		PR_DISP_INFO("MHL inserted before HDMI related function was ready! Wait more 5 sec...\n");
-		queue_delayed_work(pInfo->wq, &pInfo->init_delay_work, HZ*10);
+		queue_delayed_work(pInfo->wq, &pInfo->init_delay_work, HZ*5);
+		mutex_unlock(&mhl_early_suspend_sem);
 		return;
 	}
 
@@ -458,6 +475,12 @@ void sii9234_mhl_device_wakeup(void)
 		pInfo->mhl_usb_switch(1);
 
 	sii_gpio_set_value(pInfo->reset_pin, 1); 
+
+	if (g_bLowPowerModeOn) {
+		g_bLowPowerModeOn = false;
+		if (pInfo->mhl_lpm_power)
+			pInfo->mhl_lpm_power(0);
+	}
 
 	if (pInfo->mhl_1v2_power)
 		pInfo->mhl_1v2_power(1);
@@ -489,8 +512,12 @@ void sii9234_mhl_device_wakeup(void)
 	
 	
 	need_simulate_cable_out = true;
-	queue_delayed_work(pInfo->wq, &pInfo->irq_timeout_work, HZ * MHL_ISR_TIMEOUT);
+	if(!dbg_con_test_on)
+		queue_delayed_work(pInfo->wq, &pInfo->irq_timeout_work, HZ * MHL_ISR_TIMEOUT);
+	else
+		queue_delayed_work(pInfo->wq, &pInfo->irq_timeout_work, HZ * dbg_con_test_timeout);
 
+	mutex_unlock(&mhl_early_suspend_sem);
 }
 
 static void init_delay_handler(struct work_struct *w)
@@ -509,23 +536,33 @@ static void init_complete_handler(struct work_struct *w)
 }
 static void irq_timeout_handler(struct work_struct *w)
 {
-	if(need_simulate_cable_out) {
-		T_MHL_SII9234_INFO *pInfo = sii9234_info_ptr;
-		int ret = 0 ;
-		if (!pInfo)
-			return;
-		
-		PR_DISP_INFO("%s , There is no MHL ISR simulate cable out.\n", __func__);
-		disable_irq_nosync(pInfo->irq);
-		TPI_Init();
-		free_irq(pInfo->irq, pInfo);
-		ret = request_irq(pInfo->irq, sii9234_irq_handler, IRQF_TRIGGER_LOW, "mhl_sii9234_evt", pInfo);
-		if (ret < 0) {
-			PR_DISP_DEBUG("%s: request_irq(%d) failed for gpio %d (%d)\n",
-				__func__, pInfo->irq, pInfo->intr_pin, ret);
-			ret = -EIO;
+	T_MHL_SII9234_INFO *pInfo = sii9234_info_ptr;
+	if(!dbg_con_test_on) {
+		if(need_simulate_cable_out) {
+			int ret = 0 ;
+			if (!pInfo)
+				return;
+			
+			PR_DISP_INFO("%s , There is no MHL ISR simulate cable out.\n", __func__);
+			disable_irq_nosync(pInfo->irq);
+			TPI_Init();
+			free_irq(pInfo->irq, pInfo);
+			ret = request_irq(pInfo->irq, sii9234_irq_handler, IRQF_TRIGGER_LOW, "mhl_sii9234_evt", pInfo);
+			if (ret < 0) {
+				PR_DISP_DEBUG("%s: request_irq(%d) failed for gpio %d (%d)\n",
+					__func__, pInfo->irq, pInfo->intr_pin, ret);
+				ret = -EIO;
+			}
+			enable_irq(pInfo->irq);
+			update_mhl_status(false, CONNECT_TYPE_UNKNOWN);
 		}
-		enable_irq(pInfo->irq);
+	} else {
+		sii9234_disableIRQ();
+		if (pInfo->mhl_1v2_power)
+			pInfo->mhl_1v2_power(0);
+		if (pInfo->mhl_usb_switch)
+			pInfo->mhl_usb_switch(0);
+		TPI_Init();
 		update_mhl_status(false, CONNECT_TYPE_UNKNOWN);
 	}
 }
@@ -592,6 +629,11 @@ static void sii9234_early_suspend(struct early_suspend *h)
 		if (cable_get_accessory_type() != DOCK_STATE_MHL )
 			disable_interswitch = true;
 		TPI_Init();
+		if (!g_bLowPowerModeOn) {
+			g_bLowPowerModeOn = true;
+			if (pInfo->mhl_lpm_power)
+				pInfo->mhl_lpm_power(1);
+		}
 		disable_interswitch = false;
 	}
 	mutex_unlock(&mhl_early_suspend_sem);
@@ -626,6 +668,7 @@ static void mhl_on_delay_handler(struct work_struct *w)
 		return;
 
 	mutex_lock(&mhl_early_suspend_sem);
+
 	if (IsMHLConnection()) {
 		
 		PR_DISP_DEBUG("MHL has connected. No SimulateCableOut!!!\n");
@@ -638,11 +681,61 @@ static void mhl_on_delay_handler(struct work_struct *w)
 			PR_DISP_DEBUG("notify cable out, re-init cable & mhl\n");
 			update_mhl_status(false, CONNECT_TYPE_UNKNOWN);
 			TPI_Init();
+		} else {
+			if (g_bLowPowerModeOn) {
+				g_bLowPowerModeOn = false;
+				if (pInfo->mhl_lpm_power)
+					pInfo->mhl_lpm_power(0);
+			}
 		}
 	}
 	mutex_unlock(&mhl_early_suspend_sem);
 }
 #endif
+
+extern void fake_plug(bool plug);
+
+static int mhl_con_event_open(struct inode *inode, struct file *file)
+{
+	file->f_mode &= ~(FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE);
+	return 0;
+}
+static int mhl_con_event_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static ssize_t mhl_con_event_write(struct file *file, const char __user *buff,
+	size_t count, loff_t *ppos)
+{
+	int con_event = 0;
+	char debug_buf[5];
+
+	if (count >= sizeof(debug_buf))
+		return -EFAULT;
+
+	if (copy_from_user(debug_buf, buff, count))
+		return -EFAULT;
+
+	debug_buf[count] = 0;
+
+	sscanf(debug_buf, "%d", &con_event);
+
+	if(con_event == 1)
+		fake_plug(true);
+	else
+		fake_plug(false);
+	return count;
+}
+
+static const struct file_operations mhl_con_event_fops = {
+	.open = mhl_con_event_open,
+	.release = mhl_con_event_release,
+	.read = NULL,
+	.write = mhl_con_event_write,
+};
+
+
 
 static int sii_debugfs_init(void)
 {
@@ -651,14 +744,40 @@ static int sii_debugfs_init(void)
 		PR_DISP_DEBUG("Fail to create debugfs dir: mhl_debugfs\n");
 		return -1;
 	}
-	dbg_entry_a3 = debugfs_create_u8("strength", 0644, dbg_entry_dir, &dbg_drv_str_a3);
+	dbg_entry_a3 = debugfs_create_u8("strength_a3", 0644, dbg_entry_dir, &dbg_drv_str_a3);
 	if (!dbg_entry_a3)
-		PR_DISP_DEBUG("Fail to create debugfs: strength\n");
+		PR_DISP_DEBUG("Fail to create debugfs: strength_a3\n");
+	dbg_entry_a6 = debugfs_create_u8("strength_a6", 0644, dbg_entry_dir, &dbg_drv_str_a6);
+	if (!dbg_entry_a6)
+		PR_DISP_DEBUG("Fail to create debugfs: strength_a6\n");
 	dbg_entry_dbg_on = debugfs_create_u8("dbg_on", 0644, dbg_entry_dir, &dbg_drv_str_on);
 	if (!dbg_entry_dbg_on)
 		PR_DISP_DEBUG("Fail to create debugfs: dbg_on\n");
 
+	
+	dbg_entry_con_test_timeout = debugfs_create_u8("con_test_timeout", 0644, dbg_entry_dir, &dbg_con_test_timeout);
+	if (!dbg_entry_con_test_timeout)
+		PR_DISP_DEBUG("Fail to create debugfs: con_test_timeout\n");
+	dbg_entry_con_test_on = debugfs_create_u8("con_test_on", 0644, dbg_entry_dir, &dbg_con_test_on);
+	if (!dbg_entry_dbg_on)
+		PR_DISP_DEBUG("Fail to create debugfs: con_test_on\n");
+
+	
+	if (debugfs_create_file("con_event", 0644, dbg_entry_dir, 0, &mhl_con_event_fops)
+			== NULL) {
+		printk(KERN_ERR "%s(%d): debugfs_create_file: debug fail\n",
+			__FILE__, __LINE__);
+		return -1;
+	}
 	return 0;
+}
+
+void sii9234_request_abort(void)
+{
+	T_MHL_SII9234_INFO *pInfo = sii9234_info_ptr;
+	need_simulate_cable_out = true;
+	PR_DISP_INFO("reuqest to abort connection");
+	queue_delayed_work(pInfo->wq, &pInfo->irq_timeout_work, HZ);
 }
 
 static int sii9234_probe(struct i2c_client *client,
@@ -695,6 +814,7 @@ static int sii9234_probe(struct i2c_client *client,
 	pInfo->pwrCtrl = pdata->power;
 	pInfo->mhl_usb_switch = pdata->mhl_usb_switch;
 	pInfo->mhl_1v2_power = pdata->mhl_1v2_power;
+	pInfo->mhl_lpm_power = pdata->mhl_lpm_power;
 	pInfo->mhl_power_vote = pdata->mhl_power_vote;
 	pInfo->enable_5v = pdata->enable_5v;
 	sii9234_info_ptr = pInfo;
@@ -729,7 +849,9 @@ static int sii9234_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&pInfo->detect_charger_work, detect_charger_handler);
 #endif
 	irq_jiffies = jiffies;
+#ifndef CONFIG_ARCH_MSM8X60
 	pInfo->irq = gpio_to_irq(pInfo->irq);
+#endif
 	ret = request_irq(pInfo->irq, sii9234_irq_handler, IRQF_TRIGGER_LOW, "mhl_sii9234_evt", pInfo);
 	if (ret < 0) {
 		PR_DISP_DEBUG("%s: request_irq(%d) failed for gpio %d (%d)\n",
@@ -795,7 +917,7 @@ static int sii9234_probe(struct i2c_client *client,
 		PR_DISP_DEBUG("MHL: can't register input devce\n");
 #endif
 	
-	queue_delayed_work(pInfo->wq, &pInfo->init_complete_work, HZ*5);
+	queue_delayed_work(pInfo->wq, &pInfo->init_complete_work, HZ*10);
 	PR_DISP_DEBUG("%s: Probe success!\n", __func__);
 	return ret;
 err_create_workqueue:
@@ -873,10 +995,16 @@ static struct t_usb_status_notifier usb_status_notifier = {
 	.func = mhl_usb_status_notifier_func,
 };
 
-static int __init sii9234_init(void)
+static void __init sii9234_init_async(void *unused, async_cookie_t cookie)
 {
 	htc_usb_register_notifier(&usb_status_notifier);
-	return i2c_add_driver(&sii9234_driver);
+	i2c_add_driver(&sii9234_driver);
+}
+
+static int __init sii9234_init(void)
+{
+	async_schedule(sii9234_init_async, NULL);
+	return 0;
 }
 
 static void __exit sii9234_exit(void)
