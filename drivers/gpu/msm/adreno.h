@@ -210,14 +210,18 @@ extern const unsigned int a225_registers_count;
 extern const unsigned int a3xx_registers[];
 extern const unsigned int a3xx_registers_count;
 
+extern const unsigned int a3xx_hlsq_registers[];
+extern const unsigned int a3xx_hlsq_registers_count;
+
 extern const unsigned int a330_registers[];
 extern const unsigned int a330_registers_count;
 
 extern unsigned int ft_detect_regs[];
 extern const unsigned int ft_detect_regs_count;
 
-int adreno_idle(struct kgsl_device *device);
 
+
+int adreno_idle(struct kgsl_device *device);
 void adreno_regread(struct kgsl_device *device, unsigned int offsetwords,
 				unsigned int *value);
 void adreno_regwrite(struct kgsl_device *device, unsigned int offsetwords,
@@ -408,7 +412,7 @@ static inline int adreno_add_read_cmds(struct kgsl_device *device,
  * @cmds - Pointer to memory where idle commands need to be added
  */
 static inline int adreno_add_idle_cmds(struct adreno_device *adreno_dev,
-				unsigned int *cmds)
+							unsigned int *cmds)
 {
 	unsigned int *start = cmds;
 
@@ -416,7 +420,7 @@ static inline int adreno_add_idle_cmds(struct adreno_device *adreno_dev,
 	*cmds++ = 0x00000000;
 
 	if ((adreno_dev->gpurev == ADRENO_REV_A305) ||
-			(adreno_dev->gpurev == ADRENO_REV_A320)) {
+		(adreno_dev->gpurev == ADRENO_REV_A320)) {
 		*cmds++ = cp_type3_packet(CP_WAIT_FOR_ME, 1);
 		*cmds++ = 0x00000000;
 	}

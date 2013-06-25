@@ -30,7 +30,7 @@
 #include <mach/iommu_hw-8xxx.h>
 #include <mach/iommu.h>
 #include <mach/msm_smsm.h>
-#include <mach/msm_rtb_enable.h>
+
 #define MRC(reg, processor, op1, crn, crm, op2)				\
 __asm__ __volatile__ (							\
 "   mrc   "   #processor "," #op1 ", %0,"  #crn "," #crm "," #op2 "\n"  \
@@ -72,8 +72,8 @@ DEFINE_MUTEX(msm_iommu_lock);
  * access these.
  */
 struct msm_iommu_remote_lock {
-int initialized;
-struct remote_iommu_petersons_spinlock *lock;
+	int initialized;
+	struct remote_iommu_petersons_spinlock *lock;
 };
 
 static struct msm_iommu_remote_lock msm_iommu_remote_lock;
@@ -83,7 +83,7 @@ static void _msm_iommu_remote_spin_lock_init(void)
 {
 	msm_iommu_remote_lock.lock = smem_alloc(SMEM_SPINLOCK_ARRAY, 32);
 	memset(msm_iommu_remote_lock.lock, 0,
-		sizeof(*msm_iommu_remote_lock.lock));
+			sizeof(*msm_iommu_remote_lock.lock));
 }
 
 void msm_iommu_remote_p0_spin_lock(void)
@@ -94,7 +94,7 @@ void msm_iommu_remote_p0_spin_lock(void)
 	smp_mb();
 
 	while (msm_iommu_remote_lock.lock->flag[PROC_GPU] == 1 &&
-		msm_iommu_remote_lock.lock->turn == 1)
+	       msm_iommu_remote_lock.lock->turn == 1)
 		cpu_relax();
 }
 
@@ -185,9 +185,9 @@ static int __flush_iotlb_va(struct iommu_domain *domain, unsigned int va)
 		SET_TLBIVA(iommu_drvdata->base, ctx_drvdata->num,
 			   asid | (va & TLBIVA_VA));
 		mb();
+
 		msm_iommu_remote_spin_unlock();
-		flush_iotlb_va_footprint = 41;
-		dsb();
+
 		__disable_clocks(iommu_drvdata);
 	}
 fail:
@@ -224,8 +224,7 @@ static int __flush_iotlb(struct iommu_domain *domain)
 
 		msm_iommu_remote_spin_unlock();
 
-		flush_iotlb_footprint = 41;
-		dsb();
+
 		__disable_clocks(iommu_drvdata);
 	}
 fail:

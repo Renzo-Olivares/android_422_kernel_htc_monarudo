@@ -329,6 +329,8 @@ static enum msm_cpu cpu_of_id[] = {
 	[147] = MSM_CPU_8610,
 
 	/* 8064AB IDs */
+	[153] = MSM_CPU_8064AB,
+
 	/* 8930AB IDs */
 	[154] = MSM_CPU_8930AB,
 	[155] = MSM_CPU_8930AB,
@@ -1000,6 +1002,7 @@ arch_initcall(socinfo_init_sysdev);
 
 static void socinfo_print(void)
 {
+
 	switch (socinfo->v1.format) {
 	case 1:
 		pr_info("%s: v%u, id=%u, ver=%u.%u\n",
@@ -1142,6 +1145,7 @@ const int get_core_count(void)
 
 const int read_msm_cpu_type(void)
 {
+
 	if (socinfo_get_msm_cpu() != MSM_CPU_UNKNOWN)
 		return socinfo_get_msm_cpu();
 
@@ -1211,4 +1215,17 @@ const int cpu_is_krait_v2(void)
 	};
 }
 
+const int cpu_is_krait_v3(void)
+{
+	switch (read_cpuid_id()) {
+	case 0x512F04D0:
+	case 0x511F06F0:
+	case 0x511F06F1:
 	case 0x511F06F2:
+	case 0x510F05D0:
+		return 1;
+
+	default:
+		return 0;
+	};
+}
