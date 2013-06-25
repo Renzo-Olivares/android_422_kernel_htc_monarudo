@@ -13,7 +13,6 @@
 #include "msm_fb.h"
 #include "mipi_dsi.h"
 #include "mipi_renesas.h"
-#include <mach/msm_rtb_enable.h>
 
 static struct msm_panel_info pinfo;
 

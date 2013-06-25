@@ -18,7 +18,6 @@
 #include "mipi_dsi.h"
 #include "hdmi_msm.h"
 #include <mach/msm_iomap.h>
-#include <mach/msm_rtb_enable.h>
 
 /* HDMI PHY macros */
 #define HDMI_PHY_REG_0                   (0x00000400)

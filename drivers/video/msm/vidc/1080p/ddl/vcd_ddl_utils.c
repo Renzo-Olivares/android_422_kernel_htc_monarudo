@@ -24,7 +24,7 @@ struct time_data {
 	unsigned int ddl_count;
 };
 static struct time_data proc_time[MAX_TIME_DATA];
-#define DDL_MSG_TIME(x...) printk(KERN_DEBUG "[VID] " x)
+#define DDL_MSG_TIME(x...) printk(KERN_DEBUG x)
 static unsigned int vidc_mmu_subsystem[] =	{
 		MSM_SUBSYSTEM_VIDEO, MSM_SUBSYSTEM_VIDEO_FWARE};
 
@@ -45,6 +45,7 @@ void *ddl_pmem_alloc(struct ddl_buf_addr *addr, size_t sz, u32 alignment)
 	unsigned long iova = 0;
 	unsigned long buffer_size = 0;
 	unsigned long *kernel_vaddr = NULL;
+	unsigned long ionflag = 0;
 	unsigned long flags = 0;
 	int ret = 0;
 	ion_phys_addr_t phyaddr = 0;
@@ -70,15 +71,20 @@ void *ddl_pmem_alloc(struct ddl_buf_addr *addr, size_t sz, u32 alignment)
 		alloc_size = (alloc_size+4095) & ~4095;
 		addr->alloc_handle = ion_alloc(
 		ddl_context->video_ion_client, alloc_size, SZ_4K,
-			res_trk_get_mem_type(), res_trk_get_ion_flags());
+			res_trk_get_mem_type());
 		if (IS_ERR_OR_NULL(addr->alloc_handle)) {
 			DDL_MSG_ERROR("%s() :DDL ION alloc failed\n",
 						 __func__);
 			goto bail_out;
 		}
+		if (res_trk_check_for_sec_session() ||
+			addr->mem_type == DDL_FW_MEM)
+			ionflag = UNCACHED;
+		else
+			ionflag = CACHED;
 		kernel_vaddr = (unsigned long *) ion_map_kernel(
 					ddl_context->video_ion_client,
-					addr->alloc_handle);
+					addr->alloc_handle, ionflag);
 		if (IS_ERR_OR_NULL(kernel_vaddr)) {
 				DDL_MSG_ERROR("%s() :DDL ION map failed\n",
 							 __func__);
@@ -105,11 +111,11 @@ void *ddl_pmem_alloc(struct ddl_buf_addr *addr, size_t sz, u32 alignment)
 					0,
 					&iova,
 					&buffer_size,
-					0, 0);
-			if (ret || !iova) {
+					UNCACHED, 0);
+			if (ret) {
 				DDL_MSG_ERROR(
-				"%s():DDL ION ion map iommu failed, ret = %d iova = 0x%lx\n",
-					__func__, ret, iova);
+				"%s():DDL ION ion map iommu failed\n",
+				 __func__);
 				goto unmap_ion_alloc;
 			}
 			addr->alloced_phys_addr = (phys_addr_t) iova;
@@ -421,7 +427,7 @@ void ddl_set_core_start_time(const char *func_name, u32 index)
 		time_data->ddl_t1 = act_time;
 		DDL_MSG_LOW("\n%s(): Start Time (%u)", func_name, act_time);
 	} else if (vidc_msg_timing) {
-		DDL_MSG_LOW("\n%s(): Timer already started! St(%u) Act(%u)",
+		DDL_MSG_TIME("\n%s(): Timer already started! St(%u) Act(%u)",
 			func_name, time_data->ddl_t1, act_time);
 	}
 }

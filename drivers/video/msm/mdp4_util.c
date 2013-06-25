@@ -33,7 +33,6 @@
 #include "mdp.h"
 #include "msm_fb.h"
 #include "mdp4.h"
-#include <mach/msm_rtb_enable.h>
 
 struct mdp4_statistic mdp4_stat;
 

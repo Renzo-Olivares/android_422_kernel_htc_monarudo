@@ -32,7 +32,6 @@
 #include "mdp.h"
 #include "msm_fb.h"
 #include "mddihost.h"
-#include <mach/msm_rtb_enable.h>
 
 static uint32 mdp_last_dma2_update_width;
 static uint32 mdp_last_dma2_update_height;

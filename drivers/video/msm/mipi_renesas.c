@@ -14,7 +14,6 @@
 #include "mipi_dsi.h"
 #include "mipi_renesas.h"
 #include <mach/socinfo.h>
-#include <mach/msm_rtb_enable.h>
 
 #define RENESAS_CMD_DELAY 0 /* 50 */
 #define RENESAS_SLEEP_OFF_DELAY 50

@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  *
  */
-#include <linux/msm_ion.h>
+#include <linux/ion.h>
 #include <mach/msm_memtypes.h>
 #include "vcd_ddl.h"
 #include "vcd_ddl_shared_mem.h"
@@ -278,7 +278,7 @@ u32 ddl_decoder_dpb_init(struct ddl_client_context *ddl)
 				memset(frame[i].vcd_frm.virtual + luma_size,
 					 0x80808080,
 					frame[i].vcd_frm.alloc_len - luma_size);
-				if (frame[i].vcd_frm.ion_flag == ION_FLAG_CACHED) {
+				if (frame[i].vcd_frm.ion_flag == CACHED) {
 					msm_ion_do_cache_op(
 					ddl_context->video_ion_client,
 					frame[i].vcd_frm.buff_ion_handle,
@@ -471,7 +471,7 @@ struct ddl_client_context *ddl_get_current_ddl_client_for_channel_id(
 		ddl = ddl_context->current_ddl[1];
 	else {
 		DDL_MSG_LOW("STATE-CRITICAL-FRMRUN");
-		DDL_MSG_LOW("Unexpected channel ID = %d", channel_id);
+		DDL_MSG_ERROR("Unexpected channel ID = %d", channel_id);
 		ddl = NULL;
 	}
 	return ddl;

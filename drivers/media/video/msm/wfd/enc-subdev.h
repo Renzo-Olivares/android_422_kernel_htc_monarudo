@@ -14,7 +14,7 @@
 #ifndef _WFD_ENC_SUBDEV_
 #define _WFD_ENC_SUBDEV_
 
-#include <linux/msm_ion.h>
+#include <linux/ion.h>
 #include <media/v4l2-subdev.h>
 #include <media/videobuf2-core.h>
 #define VENC_MAGIC_IOCTL 'V'
@@ -80,4 +80,4 @@ extern int venc_load_fw(struct v4l2_subdev *sd);
 extern long venc_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg);
 
 
-#endif 
+#endif /* _WFD_ENC_SUBDEV_ */
