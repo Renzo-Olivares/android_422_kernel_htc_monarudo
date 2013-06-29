@@ -1708,6 +1708,25 @@ static void a2xx_cp_intrcallback(struct kgsl_device *device)
 		return;
 	}
 
+<<<<<<< HEAD
+	if (status & CP_INT_CNTL__RB_INT_MASK) {
+		
+		unsigned int context_id;
+		kgsl_sharedmem_readl(&device->memstore,
+				&context_id,
+				KGSL_MEMSTORE_OFFSET(KGSL_MEMSTORE_GLOBAL,
+					current_context));
+		if (context_id < KGSL_MEMSTORE_MAX) {
+			kgsl_sharedmem_writel(&rb->device->memstore,
+					KGSL_MEMSTORE_OFFSET(context_id,
+						ts_cmp_enable), 0);
+			wmb();
+		}
+		KGSL_CMD_WARN(rb->device, "ringbuffer rb interrupt\n");
+	}
+
+=======
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 	for (i = 0; i < ARRAY_SIZE(kgsl_cp_error_irqs); i++) {
 		if (status & kgsl_cp_error_irqs[i].mask) {
 			KGSL_CMD_CRIT(rb->device, "%s\n",

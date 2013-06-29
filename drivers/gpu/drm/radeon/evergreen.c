@@ -1112,8 +1112,11 @@ void evergreen_agp_enable(struct radeon_device *rdev)
 
 void evergreen_mc_stop(struct radeon_device *rdev, struct evergreen_mc_save *save)
 {
+<<<<<<< HEAD
+=======
 	save->vga_control[0] = RREG32(D1VGA_CONTROL);
 	save->vga_control[1] = RREG32(D2VGA_CONTROL);
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 	save->vga_render_control = RREG32(VGA_RENDER_CONTROL);
 	save->vga_hdp_control = RREG32(VGA_HDP_CONTROL);
 	save->crtc_control[0] = RREG32(EVERGREEN_CRTC_CONTROL + EVERGREEN_CRTC0_REGISTER_OFFSET);

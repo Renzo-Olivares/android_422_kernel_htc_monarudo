@@ -2576,7 +2576,24 @@ static void a3xx_cp_callback(struct adreno_device *adreno_dev, int irq)
 {
 	struct kgsl_device *device = &adreno_dev->dev;
 
+<<<<<<< HEAD
+	if (irq == A3XX_INT_CP_RB_INT) {
+		unsigned int context_id;
+		kgsl_sharedmem_readl(&device->memstore, &context_id,
+				KGSL_MEMSTORE_OFFSET(KGSL_MEMSTORE_GLOBAL,
+					current_context));
+		if (context_id < KGSL_MEMSTORE_MAX) {
+			kgsl_sharedmem_writel(&device->memstore,
+					KGSL_MEMSTORE_OFFSET(context_id,
+						ts_cmp_enable), 0);
+			wmb();
+		}
+		KGSL_CMD_WARN(device, "ringbuffer rb interrupt\n");
+	}
+
+=======
 	/* Wake up everybody waiting for the interrupt */
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 	wake_up_interruptible_all(&device->wait_queue);
 
 	/* Schedule work to free mem and issue ibs */
@@ -2709,6 +2726,8 @@ static unsigned int a3xx_busy_cycles(struct adreno_device *adreno_dev)
 	return val;
 }
 
+<<<<<<< HEAD
+=======
 struct a3xx_vbif_data {
 	unsigned int reg;
 	unsigned int val;
@@ -2784,6 +2803,112 @@ static struct a3xx_vbif_data a330_vbif[] = {
 	{0, 0},
 };
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
+static void a3xx_start(struct adreno_device *adreno_dev)
+{
+	struct kgsl_device *device = &adreno_dev->dev;
+
+<<<<<<< HEAD
+	
+=======
+	if (adreno_is_a305(adreno_dev))
+		vbif = a305_vbif;
+	else if (adreno_is_a320(adreno_dev))
+		vbif = a320_vbif;
+	else if (adreno_is_a330(adreno_dev))
+		vbif = a330_vbif;
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
+
+	adreno_regwrite(device, A3XX_VBIF_IN_RD_LIM_CONF0, 0x10101010);
+	adreno_regwrite(device, A3XX_VBIF_IN_RD_LIM_CONF1, 0x10101010);
+	adreno_regwrite(device, A3XX_VBIF_OUT_RD_LIM_CONF0, 0x10101010);
+	adreno_regwrite(device, A3XX_VBIF_OUT_WR_LIM_CONF0, 0x10101010);
+	adreno_regwrite(device, A3XX_VBIF_DDR_OUT_MAX_BURST, 0x00000303);
+	adreno_regwrite(device, A3XX_VBIF_IN_WR_LIM_CONF0, 0x10101010);
+	adreno_regwrite(device, A3XX_VBIF_IN_WR_LIM_CONF1, 0x10101010);
+
+	
+	adreno_regwrite(device, A3XX_VBIF_GATE_OFF_WRREQ_EN, 0x000000FF);
+
+	
+	adreno_regwrite(device, A3XX_VBIF_ARB_CTL, 0x00000030);
+
+	
+	adreno_regwrite(device, A3XX_VBIF_OUT_AXI_AOOO_EN, 0x0000003C);
+	adreno_regwrite(device, A3XX_VBIF_OUT_AXI_AOOO, 0x003C003C);
+
+	if (cpu_is_apq8064()) {
+		
+		adreno_regwrite(device, A3XX_VBIF_ABIT_SORT, 0x000000FF);
+		adreno_regwrite(device, A3XX_VBIF_ABIT_SORT_CONF, 0x000000A4);
+=======
+/*
+ * Most of the VBIF registers on 8974v2 have the correct values at power on, so
+ * we won't modify those if we don't need to
+ */
+static struct a3xx_vbif_data a330v2_vbif[] = {
+	/* Enable 1k sort */
+	{ A3XX_VBIF_ABIT_SORT, 0x0001003F },
+	{ A3XX_VBIF_ABIT_SORT_CONF, 0x000000A4 },
+	/* Enable WR-REQ */
+	{ A3XX_VBIF_GATE_OFF_WRREQ_EN, 0x00003F },
+	{ A3XX_VBIF_DDR_OUT_MAX_BURST, 0x0000303 },
+	/* Set up VBIF_ROUND_ROBIN_QOS_ARB */
+	{ A3XX_VBIF_ROUND_ROBIN_QOS_ARB, 0x0003 },
+	{0, 0},
+};
+
+static struct {
+	int(*devfunc)(struct adreno_device *);
+	struct a3xx_vbif_data *vbif;
+} a3xx_vbif_platforms[] = {
+	{ adreno_is_a305, a305_vbif },
+	{ adreno_is_a305c, a305c_vbif },
+	{ adreno_is_a320, a320_vbif },
+	/* A330v2 needs to be ahead of A330 so the right device matches */
+	{ adreno_is_a330v2, a330v2_vbif },
+	{ adreno_is_a330, a330_vbif },
+	{ adreno_is_a305b, a305b_vbif },
+};
+
+static void a3xx_perfcounter_init(struct adreno_device *adreno_dev)
+{
+	/*
+	 * Set SP to count SP_ALU_ACTIVE_CYCLES, it includes
+	 * all ALU instruction execution regardless precision or shader ID.
+	 * Set SP to count SP0_ICL1_MISSES, It counts
+	 * USP L1 instruction miss request.
+	 * Set SP to count SP_FS_FULL_ALU_INSTRUCTIONS, it
+	 * counts USP flow control instruction execution.
+	 * we will use this to augment our hang detection
+	 */
+	if (adreno_dev->fast_hang_detect) {
+		adreno_perfcounter_get(adreno_dev, KGSL_PERFCOUNTER_GROUP_SP,
+			SP_ALU_ACTIVE_CYCLES, &ft_detect_regs[6],
+			PERFCOUNTER_FLAG_KERNEL);
+		ft_detect_regs[7] = ft_detect_regs[6] + 1;
+		adreno_perfcounter_get(adreno_dev, KGSL_PERFCOUNTER_GROUP_SP,
+			SP0_ICL1_MISSES, &ft_detect_regs[8],
+			PERFCOUNTER_FLAG_KERNEL);
+		ft_detect_regs[9] = ft_detect_regs[8] + 1;
+		adreno_perfcounter_get(adreno_dev, KGSL_PERFCOUNTER_GROUP_SP,
+			SP_FS_CFLOW_INSTRUCTIONS, &ft_detect_regs[10],
+			PERFCOUNTER_FLAG_KERNEL);
+		ft_detect_regs[11] = ft_detect_regs[10] + 1;
+	}
+
+	adreno_perfcounter_get(adreno_dev, KGSL_PERFCOUNTER_GROUP_SP,
+		SP_FS_FULL_ALU_INSTRUCTIONS, NULL, PERFCOUNTER_FLAG_KERNEL);
+
+	/* Reserve and start countable 1 in the PWR perfcounter group */
+	adreno_perfcounter_get(adreno_dev, KGSL_PERFCOUNTER_GROUP_PWR, 1,
+			NULL, PERFCOUNTER_FLAG_KERNEL);
+}
+
+=======
+>>>>>>> a1f39f7... kgsl and video/msm from msm8960 2.5 branch
 static void a3xx_start(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = &adreno_dev->dev;
@@ -2801,36 +2926,36 @@ static void a3xx_start(struct adreno_device *adreno_dev)
 	while (vbif->reg != 0) {
 		adreno_regwrite(device, vbif->reg, vbif->val);
 		vbif++;
+>>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 	}
-
-	/* Make all blocks contribute to the GPU BUSY perf counter */
+	
 	adreno_regwrite(device, A3XX_RBBM_GPU_BUSY_MASKED, 0xFFFFFFFF);
 
-	/* Tune the hystersis counters for SP and CP idle detection */
+	
 	adreno_regwrite(device, A3XX_RBBM_SP_HYST_CNT, 0x10);
 	adreno_regwrite(device, A3XX_RBBM_WAIT_IDLE_CLOCKS_CTL, 0x10);
 
-	/* Enable the RBBM error reporting bits.  This lets us get
-	   useful information on failure */
 
 	adreno_regwrite(device, A3XX_RBBM_AHB_CTL0, 0x00000001);
 
-	/* Enable AHB error reporting */
+	
 	adreno_regwrite(device, A3XX_RBBM_AHB_CTL1, 0xA6FFFFFF);
 
-	/* Turn on the power counters */
+	
 	adreno_regwrite(device, A3XX_RBBM_RBBM_CTL, 0x00030000);
 
-	/* Turn on hang detection - this spews a lot of useful information
-	 * into the RBBM registers on a hang */
 
 	adreno_regwrite(device, A3XX_RBBM_INTERFACE_HANG_INT_CTL,
 			(1 << 16) | 0xFFF);
 
+<<<<<<< HEAD
+	
+=======
 	/* Enable 64-byte cacheline size. HW Default is 32-byte (0x000000E0). */
 	adreno_regwrite(device, A3XX_UCHE_CACHE_MODE_CONTROL_REG, 0x00000001);
 
 	/* Enable Clock gating */
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 	adreno_regwrite(device, A3XX_RBBM_CLOCK_CTL,
 			A3XX_RBBM_CLOCK_CTL_DEFAULT);
 
@@ -2862,7 +2987,123 @@ static void a3xx_start(struct adreno_device *adreno_dev)
 	}
 }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+/*
+ * Define the available perfcounter groups - these get used by
+ * adreno_perfcounter_get and adreno_perfcounter_put
+ */
+
+static struct adreno_perfcount_register a3xx_perfcounters_cp[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_CP_0_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_rbbm[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_RBBM_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_RBBM_1_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_pc[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_PC_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_PC_1_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_PC_2_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_PC_3_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_vfd[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_VFD_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_VFD_1_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_hlsq[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_HLSQ_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_HLSQ_1_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_HLSQ_2_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_HLSQ_3_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_HLSQ_4_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_HLSQ_5_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_vpc[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_VPC_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_VPC_1_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_tse[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_TSE_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_TSE_1_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_ras[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_RAS_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_RAS_1_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_uche[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_UCHE_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_UCHE_1_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_UCHE_2_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_UCHE_3_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_UCHE_4_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_UCHE_5_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_tp[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_TP_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_TP_1_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_TP_2_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_TP_3_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_TP_4_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_TP_5_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_sp[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_SP_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_SP_1_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_SP_2_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_SP_3_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_SP_4_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_SP_5_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_SP_6_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_SP_7_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_rb[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_RB_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_RB_1_LO, 0 },
+};
+
+static struct adreno_perfcount_register a3xx_perfcounters_pwr[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_PWR_0_LO, 0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, A3XX_RBBM_PERFCTR_PWR_1_LO, 0 },
+};
+
+static struct adreno_perfcount_group a3xx_perfcounter_groups[] = {
+	{ a3xx_perfcounters_cp, ARRAY_SIZE(a3xx_perfcounters_cp) },
+	{ a3xx_perfcounters_rbbm, ARRAY_SIZE(a3xx_perfcounters_rbbm) },
+	{ a3xx_perfcounters_pc, ARRAY_SIZE(a3xx_perfcounters_pc) },
+	{ a3xx_perfcounters_vfd, ARRAY_SIZE(a3xx_perfcounters_vfd) },
+	{ a3xx_perfcounters_hlsq, ARRAY_SIZE(a3xx_perfcounters_hlsq) },
+	{ a3xx_perfcounters_vpc, ARRAY_SIZE(a3xx_perfcounters_vpc) },
+	{ a3xx_perfcounters_tse, ARRAY_SIZE(a3xx_perfcounters_tse) },
+	{ a3xx_perfcounters_ras, ARRAY_SIZE(a3xx_perfcounters_ras) },
+	{ a3xx_perfcounters_uche, ARRAY_SIZE(a3xx_perfcounters_uche) },
+	{ a3xx_perfcounters_tp, ARRAY_SIZE(a3xx_perfcounters_tp) },
+	{ a3xx_perfcounters_sp, ARRAY_SIZE(a3xx_perfcounters_sp) },
+	{ a3xx_perfcounters_rb, ARRAY_SIZE(a3xx_perfcounters_rb) },
+	{ a3xx_perfcounters_pwr, ARRAY_SIZE(a3xx_perfcounters_pwr) },
+};
+
+static struct adreno_perfcounters a3xx_perfcounters = {
+	a3xx_perfcounter_groups,
+	ARRAY_SIZE(a3xx_perfcounter_groups),
+};
+
+=======
+>>>>>>> a1f39f7... kgsl and video/msm from msm8960 2.5 branch
 /* Defined in adreno_a3xx_snapshot.c */
+>>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 void *a3xx_snapshot(struct adreno_device *adreno_dev, void *snapshot,
 	int *remain, int hang);
 

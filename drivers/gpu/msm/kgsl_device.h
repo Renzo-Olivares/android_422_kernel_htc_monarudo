@@ -59,7 +59,6 @@ struct platform_device;
 struct kgsl_device_private;
 struct kgsl_context;
 struct kgsl_power_stats;
-struct kgsl_event;
 
 struct kgsl_functable {
 	/* Mandatory functions - these functions must be implemented
@@ -113,9 +112,12 @@ struct kgsl_functable {
 	int (*setproperty) (struct kgsl_device *device,
 		enum kgsl_property_type type, void *value,
 		unsigned int sizebytes);
+<<<<<<< HEAD
+=======
 	int (*postmortem_dump) (struct kgsl_device *device, int manual);
 	int (*next_event)(struct kgsl_device *device,
 		struct kgsl_event *event);
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 };
 
 /* MH register values */

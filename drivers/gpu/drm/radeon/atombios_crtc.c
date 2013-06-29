@@ -259,7 +259,11 @@ void atombios_crtc_dpms(struct drm_crtc *crtc, int mode)
 		/* adjust pm to dpms changes BEFORE enabling crtcs */
 		radeon_pm_compute_clocks(rdev);
 		/* disable crtc pair power gating before programming */
+<<<<<<< HEAD
+		if (ASIC_IS_DCE6(rdev) && !radeon_crtc->in_mode_set)
+=======
 		if (ASIC_IS_DCE6(rdev))
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 			atombios_powergate_crtc(crtc, ATOM_DISABLE);
 		atombios_enable_crtc(crtc, ATOM_ENABLE);
 		if (ASIC_IS_DCE3(rdev) && !ASIC_IS_DCE6(rdev))
@@ -279,7 +283,11 @@ void atombios_crtc_dpms(struct drm_crtc *crtc, int mode)
 		atombios_enable_crtc(crtc, ATOM_DISABLE);
 		radeon_crtc->enabled = false;
 		/* power gating is per-pair */
+<<<<<<< HEAD
+		if (ASIC_IS_DCE6(rdev) && !radeon_crtc->in_mode_set) {
+=======
 		if (ASIC_IS_DCE6(rdev)) {
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 			struct drm_crtc *other_crtc;
 			struct radeon_crtc *other_radeon_crtc;
 			list_for_each_entry(other_crtc, &rdev->ddev->mode_config.crtc_list, head) {

@@ -529,8 +529,21 @@ extern void radeon_i2c_put_byte(struct radeon_i2c_chan *i2c,
 				u8 val);
 extern void radeon_router_select_ddc_port(struct radeon_connector *radeon_connector);
 extern void radeon_router_select_cd_port(struct radeon_connector *radeon_connector);
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+extern bool radeon_ddc_probe(struct radeon_connector *radeon_connector);
+=======
 extern bool radeon_ddc_probe(struct radeon_connector *radeon_connector,
 			bool requires_extended_probe);
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
+=======
+extern bool radeon_ddc_probe(struct radeon_connector *radeon_connector);
+>>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
+=======
+extern bool radeon_ddc_probe(struct radeon_connector *radeon_connector,
+			bool requires_extended_probe);
+>>>>>>> ebc738e... iommu and shit.
 extern int radeon_ddc_get_modes(struct radeon_connector *radeon_connector);
 
 extern struct drm_encoder *radeon_best_encoder(struct drm_connector *connector);

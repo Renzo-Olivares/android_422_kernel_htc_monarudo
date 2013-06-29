@@ -404,7 +404,10 @@ struct evergreen_mc_save {
 	u32 vga_control[6];
 	u32 vga_render_control;
 	u32 vga_hdp_control;
+<<<<<<< HEAD
+=======
 	u32 crtc_control[6];
+>>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 };
 void evergreen_pcie_gart_tlb_flush(struct radeon_device *rdev);
 int evergreen_init(struct radeon_device *rdev);
