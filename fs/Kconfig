@@ -280,8 +280,6 @@ endif # NETWORK_FILESYSTEMS
 source "fs/nls/Kconfig"
 source "fs/dlm/Kconfig"
 
-<<<<<<< HEAD
-=======
 config RESTRICT_ROOTFS_SLAVE
 	bool "Android: Restrict rootfs slave mountspace to /storage"
 	help
@@ -305,16 +303,7 @@ config RESTRICT_ROOTFS_SLAVE
 
 	  This option requires that a tmpfs volume is mounted as /storage in
 	  Android init.rc.  If this volume is unavailable, then we fall back to the
-	  previous behavior of marking the entire filesystem hierarchy as slave.
-
-
-
-config DYNAMIC_FSYNC
-	bool "dynamic file sync control"
-	default n
-	help
-	  An experimental file sync control using Android's early suspend / late resume drivers
-
+	  previous behavior of marking the entire filesystem hierarchy as slave
 	  namespaces.  Everything under "/" (the entire filesystem hierarchy) is
 	  marked as a recursive-slave mountspace for all zygote instances.  This is
 	  done so that user-storage sandbox mounts under /storage/emulated are hidden
@@ -334,5 +323,4 @@ config DYNAMIC_FSYNC
 	  Android init.rc.  If this volume is unavailable, then we fall back to the
 	  previous behavior of marking the entire filesystem hierarchy as slave.
 
->>>>>>> 76f6f81... Restrict slave mountspace so Dalvik apps can mount system-wide volumes
 endmenu
