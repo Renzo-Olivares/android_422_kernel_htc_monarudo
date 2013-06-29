@@ -40,15 +40,7 @@
 #include <linux/mutex.h>
 #include <linux/delay.h>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-extern void show_meminfo(void);
-=======
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
-static uint32_t lowmem_debug_level = 2;
-=======
 static uint32_t lowmem_debug_level = 1;
->>>>>>> 1d3ec4f... need to revert to DNA vidc stack
 static int lowmem_adj[6] = {
 	0,
 	1,
@@ -72,33 +64,6 @@ static unsigned long lowmem_deathpending_timeout;
 			printk(x);			\
 	} while (0)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-static void dump_tasks(void)
-{
-       struct task_struct *p;
-       struct task_struct *task;
-
-       pr_info("[ pid ]   uid  total_vm      rss cpu oom_adj  name\n");
-       for_each_process(p) {
-               task = find_lock_task_mm(p);
-               if (!task) {
-                       continue;
-               }
-
-               pr_info("[%5d] %5d  %8lu %8lu %3u     %3d  %s\n",
-                       task->pid, task_uid(task),
-                       task->mm->total_vm, get_mm_rss(task->mm),
-                       task_cpu(task), task->signal->oom_adj, task->comm);
-               task_unlock(task);
-       }
-}
-
-=======
-static int
-task_fork_notify_func(struct notifier_block *self, unsigned long val, void *data);
-=======
->>>>>>> 1d3ec4f... need to revert to DNA vidc stack
 
 #ifdef CRPALMER_WE_DONT_HAVE_CMA_FOR_DNA
 
@@ -157,9 +122,6 @@ static int nr_free_pages(gfp_t gfp_mask)
 	return sum;
 }
 
-<<<<<<< HEAD
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
-=======
 
 static int test_task_flag(struct task_struct *p, int flag)
 {
@@ -179,7 +141,6 @@ static int test_task_flag(struct task_struct *p, int flag)
 
 static DEFINE_MUTEX(scan_mutex);
 
->>>>>>> 1d3ec4f... need to revert to DNA vidc stack
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
 	struct task_struct *tsk;
@@ -191,24 +152,6 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	int selected_tasksize = 0;
 	int selected_oom_score_adj;
 	int array_size = ARRAY_SIZE(lowmem_adj);
-<<<<<<< HEAD
-	int other_free = global_page_state(NR_FREE_PAGES);
-	int other_file = global_page_state(NR_FILE_PAGES) -
-		global_page_state(NR_SHMEM) - global_page_state(NR_MLOCK);
-<<<<<<< HEAD
-=======
-	int fork_boost = 0;
-	int *adj_array;
-	size_t *min_array;
-
-	if (lowmem_fork_boost &&
-		time_before_eq(jiffies, lowmem_fork_boost_timeout)) {
-		for (i = 0; i < lowmem_minfree_size; i++)
-			minfree_tmp[i] = lowmem_minfree[i] + lowmem_fork_boost_minfree[i];
-
-		adj_array = fork_boost_adj;
-		min_array = minfree_tmp;
-=======
 	int other_free;
 	int other_file;
 	unsigned long nr_to_scan = sc->nr_to_scan;
@@ -216,7 +159,6 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	if (nr_to_scan > 0) {
 		if (mutex_lock_interruptible(&scan_mutex) < 0)
 			return 0;
->>>>>>> 1d3ec4f... need to revert to DNA vidc stack
 	}
 
 	other_free = global_page_state(NR_FREE_PAGES);
@@ -231,7 +173,6 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		 */
 		other_free = nr_free_pages(sc->gfp_mask);
 	}
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 
 	if (lowmem_adj_size < array_size)
 		array_size = lowmem_adj_size;
@@ -244,15 +185,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			break;
 		}
 	}
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
-	if (sc->nr_to_scan > 0)
-=======
 	if (nr_to_scan > 0)
->>>>>>> 1d3ec4f... need to revert to DNA vidc stack
 		lowmem_print(3, "lowmem_shrink %lu, %x, ofree %d %d, ma %d\n",
 				nr_to_scan, sc->gfp_mask, other_free,
 				other_file, min_score_adj);
@@ -320,34 +253,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			     p->pid, p->comm, oom_score_adj, tasksize);
 	}
 	if (selected) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-		lowmem_print(1, "send sigkill to %d (%s), oom_adj %d, score_adj %d, size %d\n",
-			     selected->pid, selected->comm, selected_oom_adj,
-			     selected_oom_score_adj, selected_tasksize);
-		lowmem_deathpending_timeout = jiffies + HZ;
-		if (selected_oom_adj < 7)
-		{
-			show_meminfo();
-=======
-		lowmem_print(1, "[%s] send sigkill to %d (%s), oom_adj %d, score_adj %d,"
-			" min_score_adj %d, size %dK, free %dK, file %dK, fork_boost %dK\n",
-			     current->comm, selected->pid, selected->comm,
-			     selected_oom_adj, selected_oom_score_adj,
-			     min_score_adj, selected_tasksize << 2,
-			     other_free << 2, other_file << 2, fork_boost << 2);
-		lowmem_deathpending_timeout = jiffies + HZ;
-		if (selected_oom_adj < 7)
-		{
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
-			dump_tasks();
-		}
-=======
 		lowmem_print(1, "send sigkill to %d (%s), adj %d, size %d\n",
 			     selected->pid, selected->comm,
 			     selected_oom_score_adj, selected_tasksize);
 		lowmem_deathpending_timeout = jiffies + HZ;
->>>>>>> 1d3ec4f... need to revert to DNA vidc stack
 		send_sig(SIGKILL, selected, 0);
 		set_tsk_thread_flag(selected, TIF_MEMDIE);
 		rem -= selected_tasksize;

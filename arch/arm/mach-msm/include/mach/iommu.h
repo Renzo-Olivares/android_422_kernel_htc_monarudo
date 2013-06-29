@@ -190,20 +190,6 @@ static inline struct device *msm_iommu_get_ctx(const char *ctx_name)
 }
 #endif
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-#endif
-=======
-/*
- * Function to program the global registers of an IOMMU securely.
- * This should only be called on IOMMUs for which kernel programming
- * of global registers is not possible
- */
-void msm_iommu_sec_set_access_ops(struct iommu_access_ops *access_ops);
-int msm_iommu_sec_program_iommu(int sec_id);
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
-=======
->>>>>>> ebc738e... iommu and shit.
 
 static inline int msm_soc_version_supports_iommu_v1(void)
 {
@@ -227,35 +213,4 @@ static inline int msm_soc_version_supports_iommu_v1(void)
 	}
 	return 1;
 }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
-static inline int msm_soc_version_supports_iommu_v1(void)
-{
-#ifdef CONFIG_OF
-        struct device_node *node;
-
-        node = of_find_compatible_node(NULL, NULL, "qcom,msm-smmu-v2");
-        if (node) {
-                of_node_put(node);
-                return 0;
-        }
 #endif
-        if (cpu_is_msm8960() &&
-            SOCINFO_VERSION_MAJOR(socinfo_get_version()) < 2)
-                return 0;
-
-        if (cpu_is_msm8x60() &&
-            (SOCINFO_VERSION_MAJOR(socinfo_get_version()) != 2 ||
-            SOCINFO_VERSION_MINOR(socinfo_get_version()) < 1))  {
-                return 0;
-        }
-        return 1;
-}
-#endif
-
->>>>>>> a1f39f7... kgsl and video/msm from msm8960 2.5 branch
-=======
-#endif
->>>>>>> ebc738e... iommu and shit.

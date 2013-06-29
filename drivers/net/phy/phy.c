@@ -182,9 +182,6 @@ static inline int phy_find_setting(int speed, int duplex)
 	return idx < MAX_NUM_SETTINGS ? idx : MAX_NUM_SETTINGS - 1;
 }
 
-<<<<<<< HEAD
-static inline int phy_find_valid(int idx, u32 features)
-=======
 /**
 
  * phy_find_valid - find a PHY setting that matches the requested features mask
@@ -198,7 +195,6 @@ static inline int phy_find_valid(int idx, u32 features)
  */
 static inline int phy_find_valid(unsigned idx, u32 features)
 
->>>>>>> 1d3ec4f... need to revert to DNA vidc stack
 {
 	while (idx < MAX_NUM_SETTINGS && !(settings[idx].setting & features))
 		idx++;

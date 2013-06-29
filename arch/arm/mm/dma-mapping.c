@@ -815,15 +815,12 @@ static void dma_cache_maint_page(struct page *page, unsigned long offset,
 	size_t size, enum dma_data_direction dir,
 	void (*op)(const void *, size_t, int))
 {
-<<<<<<< HEAD
-=======
 	/*
 	 * A single sg entry may refer to multiple physically contiguous
 	 * pages.  But we still need to process highmem pages individually.
 	 * If highmem is not configured then the bulk of this loop gets
 	 * optimized out.
 	 */
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 	size_t left = size;
 	do {
 		size_t len = left;
