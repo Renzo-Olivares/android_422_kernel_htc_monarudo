@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -124,10 +124,10 @@ static char no_wait_te2[] = {0xC1, 0x00};
 static char dsi_orise_pwm2[] = {0x53, 0x24};
 static char dsi_orise_pwm3[] = {0x55, 0x00};
 
-static char enter_sleep[2] = {0x10, 0x00}; /* DTYPE_DCS_WRITE */
-static char exit_sleep[2] = {0x11, 0x00}; /* DTYPE_DCS_WRITE */
-static char display_off[2] = {0x28, 0x00}; /* DTYPE_DCS_WRITE */
-static char display_on[2] = {0x29, 0x00}; /* DTYPE_DCS_WRITE */
+static char enter_sleep[2] = {0x10, 0x00}; 
+static char exit_sleep[2] = {0x11, 0x00}; 
+static char display_off[2] = {0x28, 0x00}; 
+static char display_on[2] = {0x29, 0x00}; 
 
 static char led_pwm1[] = {0x51, 0x00}; 
 
@@ -229,11 +229,6 @@ static int mipi_orise_lcd_on(struct platform_device *pdev)
 	} else {
 		mipi_dsi_cmds_tx(&orise_tx_buf, orise_cmd_on_cmds,
 			ARRAY_SIZE(orise_cmd_on_cmds));
-<<<<<<< HEAD
-=======
-
-		mipi_dsi_cmd_bta_sw_trigger(); /* clean up ack_err_status */
->>>>>>> 9fc1014... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 	}
 
 	atomic_set(&lcd_power_state, 1);
