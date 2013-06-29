@@ -415,13 +415,12 @@ static void adreno_iommu_setstate(struct kgsl_device *device,
 
 	sizedwords += (cmds - &link[0]);
 	if (sizedwords) {
-		
+		/* invalidate all base pointers */
 		*cmds++ = cp_type3_packet(CP_INVALIDATE_STATE, 1);
 		*cmds++ = 0x7fff;
 		sizedwords += 2;
-		*cmds++ = cp_type3_packet(CP_INTERRUPT, 1);
-		*cmds++ = CP_INT_CNTL__RB_INT_MASK;
-		sizedwords += 2;
+		/* This returns the per context timestamp but we need to
+		 * use the global timestamp for iommu clock disablement */
 		adreno_ringbuffer_issuecmds(device, adreno_ctx,
 			KGSL_CMD_FLAGS_PMODE,
 			&link[0], sizedwords);
@@ -2563,9 +2562,6 @@ static unsigned int _get_context_id(struct kgsl_context *k_ctxt)
 	return context_id;
 }
 
-<<<<<<< HEAD
-static int kgsl_check_interrupt_timestamp(struct kgsl_device *device,
-=======
 static unsigned int adreno_check_hw_ts(struct kgsl_device *device,
 		struct kgsl_context *context, unsigned int timestamp)
 {
@@ -2642,7 +2638,6 @@ static int adreno_next_event(struct kgsl_device *device,
 }
 
 static int adreno_check_interrupt_timestamp(struct kgsl_device *device,
->>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 		struct kgsl_context *context, unsigned int timestamp)
 {
 	int status;
@@ -3228,11 +3223,8 @@ static const struct kgsl_functable adreno_functable = {
 	.drawctxt_create = adreno_drawctxt_create,
 	.drawctxt_destroy = adreno_drawctxt_destroy,
 	.setproperty = adreno_setproperty,
-<<<<<<< HEAD
-=======
 	.postmortem_dump = adreno_dump,
 	.next_event = adreno_next_event,
->>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 };
 
 static struct platform_driver adreno_platform_driver = {
