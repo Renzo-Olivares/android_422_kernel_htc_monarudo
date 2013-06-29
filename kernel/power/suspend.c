@@ -27,6 +27,7 @@
 #include <linux/ftrace.h>
 #include <linux/rtc.h>
 #include <trace/events/power.h>
+#include <linux/pm_qos.h>
 
 #include "power.h"
 
@@ -167,6 +168,10 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 	return error;
 }
 
+#ifdef CONFIG_SUSPEND_DISABLE_SPC
+static struct pm_qos_request pm_qos_req_dma;
+#endif
+
 int suspend_devices_and_enter(suspend_state_t state)
 {
 	int error;
@@ -176,6 +181,12 @@ int suspend_devices_and_enter(suspend_state_t state)
 		return -ENOSYS;
 
 	trace_machine_suspend(state);
+
+#ifdef CONFIG_SUSPEND_DISABLE_SPC
+	pm_qos_add_request(&pm_qos_req_dma, PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
+	pm_qos_update_request(&pm_qos_req_dma, 3);
+#endif
+
 	if (suspend_ops->begin) {
 		error = suspend_ops->begin(state);
 		if (error)
@@ -209,6 +220,12 @@ int suspend_devices_and_enter(suspend_state_t state)
  Close:
 	if (suspend_ops->end)
 		suspend_ops->end();
+
+#ifdef CONFIG_SUSPEND_DISABLE_SPC
+	pm_qos_update_request(&pm_qos_req_dma, PM_QOS_DEFAULT_VALUE);
+	pm_qos_remove_request(&pm_qos_req_dma);
+#endif
+
 	trace_machine_suspend(PWR_EVENT_EXIT);
 	return error;
 

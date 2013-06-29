@@ -36,6 +36,7 @@ MODULE_LICENSE("GPL v2");
 MODULE_VERSION("0.2");
 MODULE_ALIAS("platform:i2c_qup");
 
+static int i2c_debug_flag;
 enum {
 	QUP_CONFIG              = 0x0,
 	QUP_STATE               = 0x4,
@@ -126,6 +127,10 @@ static int recover_times[13];
 static int test_ramdump;
 #endif
 
+int test_recovery[13];
+ 
+
+
 static struct gpiomux_setting recovery_config = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_8MA,
@@ -184,6 +189,73 @@ static inline void qup_print_status(struct qup_i2c_dev *dev)
 {
 }
 #endif
+
+static ssize_t i2c_debug_show(struct device *dev,
+                                  struct device_attribute *attr, char *buf)
+{
+	char *s = buf;
+	int i=0;
+	s += sprintf(s, "i2c_debug_flag = 0x%x\n", i2c_debug_flag);
+	if(i2c_debug_flag){
+		for (i = 0; i < 13; i++)
+		test_recovery[i] = 1;
+	}
+	return s - buf;
+}
+
+static ssize_t i2c_debug_store(struct device *dev,
+                                   struct device_attribute *attr,
+                                   const char *buf, size_t count)
+{
+	i2c_debug_flag = -1;
+	sscanf(buf, "%d", &i2c_debug_flag);
+
+	pr_info("%s: i2c_debug_flag = %d\n", __func__, i2c_debug_flag);
+
+	return count;
+
+}
+
+static DEVICE_ATTR(debug_en, 0664, i2c_debug_show, i2c_debug_store);
+
+int i2c_registerAttr(void)
+{
+        int ret;
+        struct class *htc_i2c_class;
+        struct device *i2c_dev;
+
+        htc_i2c_class = class_create(THIS_MODULE,
+                                        "htc_i2c");
+        if (IS_ERR(htc_i2c_class)) {
+                ret = PTR_ERR(htc_i2c_class);
+                htc_i2c_class = NULL;
+                goto err_create_class;
+        }
+
+        i2c_dev = device_create(htc_i2c_class,
+                                NULL, 0, "%s", "i2c");
+        if (unlikely(IS_ERR(i2c_dev))) {
+                ret = PTR_ERR(i2c_dev);
+                i2c_dev = NULL;
+                goto err_create_i2c_device;
+        }
+
+
+        
+        ret = device_create_file(i2c_dev, &dev_attr_debug_en);
+        if (ret){
+                goto err_create_i2c_device;
+	}
+
+        return 0;
+
+err_create_i2c_device:
+        class_destroy(htc_i2c_class);
+err_create_class:
+
+        return ret;
+}
+
 
 static irqreturn_t
 qup_i2c_interrupt(int irq, void *devid)
@@ -647,17 +719,18 @@ static void qup_i2c_recover_bus_busy(struct qup_i2c_dev *dev)
 	if (dev->pdata->msm_i2c_config_gpio)
 		return;
 #endif
-
-	if (!(status & (I2C_STATUS_BUS_ACTIVE)) ||
-	    (status & (I2C_STATUS_BUS_MASTER))) {
-		if (!(dev->err & (I2C_STATUS_BUS_ACTIVE)) ||
-		    (dev->err & (I2C_STATUS_BUS_MASTER))) {
-			dev_info(dev->dev, "%s: status = 0x%x, dev->err = "
-				"0x%x, return\n", __func__, status, dev->err);
-			return;
-		} else {
-			dev_info(dev->dev, "%s: status = 0x%x, dev->err = "
-				"0x%x, keep going\n", __func__, status, dev->err);
+	if(!i2c_debug_flag){
+		if (!(status & (I2C_STATUS_BUS_ACTIVE)) ||
+		(status & (I2C_STATUS_BUS_MASTER))) {
+			if (!(dev->err & (I2C_STATUS_BUS_ACTIVE)) ||
+				(dev->err & (I2C_STATUS_BUS_MASTER))) {
+				dev_info(dev->dev, "%s: status = 0x%x, dev->err = "
+					"0x%x, return\n", __func__, status, dev->err);
+				return;
+			} else {
+				dev_info(dev->dev, "%s: status = 0x%x, dev->err = "
+					"0x%x, keep going\n", __func__, status, dev->err);
+			}
 		}
 	}
 
@@ -741,10 +814,6 @@ recovery_end:
 	enable_irq(dev->err_irq);
 }
 
-#ifdef TEST_RECOVERY
-int test_recovery[13];
-#endif 
-
 static int
 qup_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 {
@@ -778,18 +847,18 @@ qup_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int num)
 		qup_i2c_pwr_mgmt(dev, 1);
 
 	
-#ifdef TEST_RECOVERY
-	if ((dev->adapter.nr <= 12) &&
-	    (test_recovery[dev->adapter.nr] == 1)) {
+	if(i2c_debug_flag){
+		if ((dev->adapter.nr <= 12) &&
+			(test_recovery[dev->adapter.nr] == 1)) {
 
-		dev_info(dev->dev, "%s: dev->adapter.nr: %d\n",
-				   __func__, dev->adapter.nr);
+			dev_info(dev->dev, "%s: dev->adapter.nr: %d\n",
+				__func__, dev->adapter.nr);
 
-		qup_i2c_recover_bus_busy(dev);
+			qup_i2c_recover_bus_busy(dev);
 
-		test_recovery[dev->adapter.nr] = 0;
+			test_recovery[dev->adapter.nr] = 0;
+		}
 	}
-#endif 
 
 	
 	if (dev->clk_ctl == 0) {
@@ -1098,10 +1167,17 @@ qup_i2c_probe(struct platform_device *pdev)
 	int ret = 0;
 	int i;
 	struct msm_i2c_platform_data *pdata;
-
+	i2c_debug_flag = 0;
 	gsbi_mem = NULL;
 	dev_dbg(&pdev->dev, "qup_i2c_probe\n");
 
+	if(pdev->id == 0){
+		printk("i2c registerAttr\n");
+		ret = i2c_registerAttr();
+	}
+        if (ret) {
+		printk("%s: set i2c_registerAttr fail!\n", __func__);
+        }
 	if (pdev->dev.of_node) {
 		struct device_node *node = pdev->dev.of_node;
 		pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
@@ -1315,11 +1391,6 @@ blsp_core_init:
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
-#ifdef TEST_RECOVERY
-	for (i = 0; i < 13; i++)
-		test_recovery[i] = 1;
-#endif 
-
 	if ((dev->adapter.nr < 13) && (dev->adapter.nr >= 0))
 		recover_times[dev->adapter.nr] = 0;
 
@@ -1340,7 +1411,6 @@ blsp_core_init:
 			of_i2c_register_devices(&dev->adapter);
 		return 0;
 	}
-
 
 err_request_irq_failed:
 	qup_i2c_free_gpios(dev);

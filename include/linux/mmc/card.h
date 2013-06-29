@@ -18,6 +18,7 @@
 extern void mmc_blk_set_wp_prevention_partno(int partno);
 extern char *mmc_blk_get_wp_prevention_partno(unsigned char *buff);
 extern unsigned int get_mmc0_write_protection_type(void);
+extern void set_mmc0_write_protection_type(unsigned int type);
 #endif	
 
 struct mmc_cid {
@@ -314,11 +315,11 @@ struct mmc_card {
 	unsigned int		sd_bus_speed;	
 
 	struct dentry		*debugfs_root;
-	unsigned int		sd_removed;
 	unsigned char		do_remove;
 	struct mmc_part	part[MMC_NUM_PHY_PARTITION]; 
 	unsigned int    nr_parts;
 	unsigned int		wr_perf; 
+	s8			speed_class; 
 
 	struct mmc_wr_pack_stats wr_pack_stats; 
 };

@@ -21,6 +21,7 @@
 #include <linux/io.h>
 #include <linux/err.h>
 #include <linux/pm.h>
+#include <linux/mfd/pm8xxx/pm8xxx-adc.h>
 
 #include <mach/msm_iomap.h>
 #include <mach/socinfo.h>
@@ -151,6 +152,8 @@ struct tsens_tm_device_sensor {
 struct tsens_tm_device {
 	bool				prev_reading_avail;
 	int				tsens_factor;
+	int				patherm0;
+	int				patherm1;
 	uint32_t			tsens_num_sensor;
 	enum platform_type		hw_type;
 	int				pm_tsens_thr_data;
@@ -230,10 +233,27 @@ static int tsens_tz_get_temp(struct thermal_zone_device *thermal,
 	return 0;
 }
 
+int tsens_get_sensor_temp(int sensor_num, unsigned long *temp)
+{
+	if (!tmdev)
+		return -ENODEV;
+
+	if (sensor_num < 0 || sensor_num >= TSENS_MAX_SENSORS || !temp)
+		return -EINVAL;
+
+	tsens8960_get_temp(sensor_num, temp);
+
+	return 0;
+}
+EXPORT_SYMBOL(tsens_get_sensor_temp);
+
 int tsens_get_temp(struct tsens_device *device, unsigned long *temp)
 {
 	if (!tmdev)
 		return -ENODEV;
+
+	if (!temp)
+		return -EINVAL;
 
 	tsens8960_get_temp(device->sensor_num, temp);
 
@@ -592,9 +612,11 @@ static struct thermal_zone_device_ops tsens_thermal_zone_ops = {
 };
 static void monitor_tsens_status(struct work_struct *work)
 {
-	unsigned int i, cntl, threshold, int_status, config;
+	unsigned int i, j, cntl, threshold, int_status, config;
 	int code;
 	int enable = 0;
+	struct pm8xxx_adc_chan_result result;
+	int rc = -1;
 
 	cntl = readl_relaxed(TSENS_CNTL_ADDR);
 	threshold = readl_relaxed(TSENS_THRESHOLD_ADDR);
@@ -603,15 +625,34 @@ static void monitor_tsens_status(struct work_struct *work)
 
 	pr_info("TSENS_CNTL_ADDR[0x%08X], TSENS_THRESHOLD_ADDR[0x%08X], TSENS_INT_STATUS_ADDR[0x%08X], TSENS_8960_CONFIG_ADDR[0x%08X]\n", cntl, threshold, int_status, config);
 
-	cntl &= (uint32_t) SENSORS_EN;
+	if (tmdev->hw_type == APQ_8064)
+		cntl &= (uint32_t) TSENS_8064_SENSORS_EN;
+	else
+		cntl &= (uint32_t) SENSORS_EN;
 	cntl >>= TSENS_SENSOR0_SHIFT;
 
 	for (i = 0; i < tmdev->tsens_num_sensor; i++) {
-		code = readl_relaxed(TSENS_S0_STATUS_ADDR
-			+ (i << TSENS_STATUS_ADDR_OFFSET));
+		if (i < 5)
+			code = readl_relaxed(TSENS_S0_STATUS_ADDR
+				+ (i << TSENS_STATUS_ADDR_OFFSET));
+		else {
+			j = i-5;
+			code = readl_relaxed(TSENS_8064_S5_STATUS_ADDR
+				+ (j << TSENS_STATUS_ADDR_OFFSET));
+		}
+
 		enable = cntl & (0x1 << i);
 		if(enable > 0)
 			pr_info("Sensor %d = %d C\n", i, tsens_tz_code_to_degC(code, i));
+	}
+
+	if (tmdev->patherm0 > 0) {
+		rc = pm8xxx_adc_read(tmdev->patherm0, &result);
+		pr_info("pa_therm0 = %lld C\n", result.physical);
+	}
+	if (tmdev->patherm1 > 0) {
+		rc = pm8xxx_adc_read(tmdev->patherm1, &result);
+		pr_info("pa_therm1 = %lld C\n", result.physical);
 	}
 
 	if (monitor_tsense_wq) {
@@ -1007,6 +1048,8 @@ int msm_tsens_early_init(struct tsens_platform_data *pdata)
 	tmdev->tsens_factor = pdata->tsens_factor;
 	tmdev->tsens_num_sensor = pdata->tsens_num_sensor;
 	tmdev->hw_type = pdata->hw_type;
+	tmdev->patherm0 = pdata->patherm0;
+	tmdev->patherm1 = pdata->patherm1;
 
 	rc = tsens_check_version_support();
 	if (rc < 0) {

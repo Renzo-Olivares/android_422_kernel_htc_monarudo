@@ -338,6 +338,13 @@ show_one(scaling_max_freq, max);
 show_one(scaling_cur_freq, cur);
 show_one(cpu_utilization, util);
 
+static bool gov_ondemand = false;
+bool is_governor_ondemand(void)
+{
+	return gov_ondemand;
+}
+EXPORT_SYMBOL(is_governor_ondemand);
+
 static int __cpufreq_set_policy(struct cpufreq_policy *data,
 				struct cpufreq_policy *policy);
 
@@ -1551,6 +1558,11 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 	}
 
 error_out:
+	if(!strncmp(data->governor->name, "ondemand", 8))
+		gov_ondemand = true;
+	else
+		gov_ondemand = false;
+
 	return ret;
 }
 

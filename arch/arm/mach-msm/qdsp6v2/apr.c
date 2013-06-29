@@ -55,7 +55,7 @@ struct apr_reset_work {
 	struct work_struct work;
 };
 
-#define APR_Q6_CHECK_TIMEOUT 5000
+#define APR_Q6_CHECK_TIMEOUT 20000
 static struct delayed_work apr_q6_check_work;
 static void apr_q6_check_worker(struct work_struct *work);
 

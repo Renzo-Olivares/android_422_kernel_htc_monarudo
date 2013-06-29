@@ -25,6 +25,13 @@
 #include "q6audio_common.h"
 #include <sound/q6afe.h>
 
+#ifdef CONFIG_MACH_DUMMY
+#undef pr_info
+#undef pr_err
+#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+#endif
+
 #ifndef CONFIG_RTAC
 
 void rtac_add_adm_device(u32 port_id, u32 copp_id, u32 path_id, u32 popp_id) {}
@@ -346,7 +353,7 @@ void rtac_remove_voice(u32 cvs_handle)
 	return;
 }
 
-static int get_voice_index(u32 cvs_handle)
+static int get_voice_index_cvs(u32 cvs_handle)
 {
 	u32 i;
 
@@ -357,6 +364,32 @@ static int get_voice_index(u32 cvs_handle)
 
 	pr_err("%s: No voice index for CVS handle %d found returning 0\n",
 	       __func__, cvs_handle);
+	return 0;
+}
+
+static int get_voice_index_cvp(u32 cvp_handle)
+{
+	u32 i;
+
+	for (i = 0; i < rtac_voice_data.num_of_voice_combos; i++) {
+		if (rtac_voice_data.voice[i].cvp_handle == cvp_handle)
+			return i;
+	}
+
+	pr_err("%s: No voice index for CVP handle %d found returning 0\n",
+	       __func__, cvp_handle);
+	return 0;
+}
+
+static int get_voice_index(u32 mode, u32 handle)
+{
+	if (mode == RTAC_CVP)
+		return get_voice_index_cvp(handle);
+	if (mode == RTAC_CVS)
+		return get_voice_index_cvs(handle);
+
+	pr_err("%s: Invalid mode %d, returning 0\n",
+	       __func__, mode);
 	return 0;
 }
 
@@ -742,7 +775,7 @@ u32 send_voice_apr(u32 mode, void *buf, u32 opcode)
 	u32	count = 0;
 	u32	bytes_returned = 0;
 	u32	payload_size;
-	u16	dest_port;
+	u32	dest_port;
 	struct	apr_hdr	voice_params;
 	pr_debug("%s\n", __func__);
 
@@ -758,7 +791,8 @@ u32 send_voice_apr(u32 mode, void *buf, u32 opcode)
 		goto done;
 	}
 
-	if (copy_from_user(&payload_size, buf + sizeof(u32), sizeof(u32))) {
+	if (copy_from_user(&payload_size, buf + sizeof(payload_size),
+						sizeof(payload_size))) {
 		pr_err("%s: Could not copy payload size from user buffer\n",
 			__func__);
 		goto done;
@@ -770,7 +804,8 @@ u32 send_voice_apr(u32 mode, void *buf, u32 opcode)
 		goto done;
 	}
 
-	if (copy_from_user(&dest_port, buf + 2 * sizeof(u32), sizeof(u32))) {
+	if (copy_from_user(&dest_port, buf + 2 * sizeof(dest_port),
+						sizeof(dest_port))) {
 		pr_err("%s: Could not copy port id from user buffer\n",
 			__func__);
 		goto done;
@@ -807,10 +842,10 @@ u32 send_voice_apr(u32 mode, void *buf, u32 opcode)
 	voice_params.src_svc = 0;
 	voice_params.src_domain = APR_DOMAIN_APPS;
 	voice_params.src_port = voice_session_id[
-					get_voice_index(dest_port)];
+					get_voice_index(mode, dest_port)];
 	voice_params.dest_svc = 0;
 	voice_params.dest_domain = APR_DOMAIN_MODEM;
-	voice_params.dest_port = dest_port;
+	voice_params.dest_port = (u16)dest_port;
 	voice_params.token = 0;
 	voice_params.opcode = opcode;
 

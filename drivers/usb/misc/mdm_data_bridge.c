@@ -22,7 +22,7 @@
 #include <mach/usb_bridge.h>
 #include <mach/board_htc.h>
 
-#define MAX_RX_URBS			50
+#define MAX_RX_URBS			100
 #define RMNET_RX_BUFSIZE		2048
 
 #define STOP_SUBMIT_URB_LIMIT		500
@@ -598,6 +598,12 @@ static int bridge_resume(struct usb_interface *iface)
 	return retval;
 }
 
+int bridge_reset_resume(struct usb_interface *intf)
+{
+	pr_info("%s intf %p\n", __func__, intf);
+	return bridge_resume(intf);
+}
+
 static int data_bridge_suspend(struct data_bridge *dev, pm_message_t message)
 {
 	if (atomic_read(&dev->pending_txurbs) &&
@@ -1048,6 +1054,7 @@ static struct usb_driver bridge_driver = {
 	.id_table =		bridge_ids,
 	.suspend =		bridge_suspend,
 	.resume =		bridge_resume,
+	.reset_resume =		bridge_reset_resume,
 	.supports_autosuspend =	1,
 };
 
@@ -1060,7 +1067,7 @@ static int __init bridge_init(void)
 		usb_diag_enable = true;
 	
 	
-	if (get_radio_flag() & 0x0008)
+	if (get_radio_flag() & 0x0001)
 		usb_pm_debug_enabled = true;
 	
 	ret = usb_register(&bridge_driver);

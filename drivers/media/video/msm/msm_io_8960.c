@@ -27,8 +27,6 @@
 
 #include <msm_sensor.h>
 
-#include <mach/msm_rtb_enable.h>
-
 #define BUFF_SIZE_128 128
 
 #if 1	
@@ -47,6 +45,8 @@
 #define CAM_CSI_LOAD_UA                    20000
 
 static struct clk *camio_cam_clk;
+static struct clk *camio_cam_rawchip_clk;
+
 #endif	
 static struct clk *camio_jpeg_clk;
 static struct clk *camio_jpeg_pclk;
@@ -98,10 +98,10 @@ void msm_io_memcpy_toio(void __iomem *dest_addr,
 	
 	for (i = 0; i < len; i++) {
 		
-		if (s && d)
+		if (s)
 			writel_relaxed(*s++, d++);
 		else {
-			pr_err("%s: invalid address %p %p, break", __func__, s,d);
+			pr_err("%s: invalid address %p, break", __func__, s);
 			break;
 		}
 		
@@ -160,6 +160,14 @@ int msm_camio_clk_enable(enum msm_camio_clk_type clktype)
 			msm_camio_clk_rate_set_2(clk, camio_clk.mclk_clk_rate);
 		break;
 #endif	
+	case CAMIO_CAM_RAWCHIP_MCLK_CLK:
+		camio_cam_rawchip_clk =
+		clk = clk_get(NULL, "cam0_clk");
+		pr_info("[CAM] %s: enable CAMIO_CAM_RAWCHIP_MCLK_CLK", __func__);
+		if (!IS_ERR(clk))
+			clk_set_rate(clk, 24000000);
+		break;
+
 	case CAMIO_JPEG_CLK:
 		camio_jpeg_clk =
 		clk = clk_get(NULL, "ijpeg_clk");
@@ -202,6 +210,10 @@ int msm_camio_clk_disable(enum msm_camio_clk_type clktype)
 		clk = camio_cam_clk;
 		break;
 #endif	
+	case CAMIO_CAM_RAWCHIP_MCLK_CLK:
+		clk = camio_cam_rawchip_clk;
+		break;
+
 	case CAMIO_JPEG_CLK:
 		clk = camio_jpeg_clk;
 		break;

@@ -2,7 +2,7 @@
  * drivers/gpu/ion/ion_carveout_heap.c
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -23,6 +23,7 @@
 #include <linux/mm.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <linux/iommu.h>
 #include <linux/seq_file.h>
 #include "ion_priv.h"
@@ -30,7 +31,6 @@
 #include <mach/iommu_domains.h>
 #include <asm/mach/map.h>
 #include <asm/cacheflush.h>
-#include <linux/msm_ion.h>
 
 struct ion_carveout_heap {
 	struct ion_heap heap;
@@ -286,18 +286,19 @@ static int ion_carveout_print_debug(struct ion_heap *heap, struct seq_file *s,
 		struct rb_node *n;
 
 		seq_printf(s, "\nMemory Map\n");
-		seq_printf(s, "%16.s %14.s %14.s %14.s\n",
-			   "client", "start address", "end address",
+		seq_printf(s, "%16.s %16.s %14.s %14.s %14.s\n",
+			   "client", "creator", "start address", "end address",
 			   "size (hex)");
 
 		for (n = rb_first(mem_map); n; n = rb_next(n)) {
 			struct mem_map_data *data =
 					rb_entry(n, struct mem_map_data, node);
 			const char *client_name = "(null)";
+			const char *creator_name = "(null)";
 
 			if (last_end < data->addr) {
-				seq_printf(s, "%16.s %14lx %14lx %14lu (%lx)\n",
-					   "FREE", last_end, data->addr-1,
+				seq_printf(s, "%16.s %16.s %14lx %14lx %14lu (%lx)\n",
+					   "FREE", "NA", last_end, data->addr-1,
 					   data->addr-last_end,
 					   data->addr-last_end);
 			}
@@ -305,14 +306,17 @@ static int ion_carveout_print_debug(struct ion_heap *heap, struct seq_file *s,
 			if (data->client_name)
 				client_name = data->client_name;
 
-			seq_printf(s, "%16.s %14lx %14lx %14lu (%lx)\n",
-				   client_name, data->addr,
+			if (data->creator_name)
+				creator_name = data->creator_name;
+
+			seq_printf(s, "%16.s %16.s %14lx %14lx %14lu (%lx)\n",
+				   client_name, creator_name, data->addr,
 				   data->addr_end,
 				   data->size, data->size);
 			last_end = data->addr_end+1;
 		}
 		if (last_end < end) {
-			seq_printf(s, "%16.s %14lx %14lx %14lu (%lx)\n", "FREE",
+			seq_printf(s, "%16.s %16.s %14lx %14lx %14lu (%lx)\n", "FREE", "NA",
 				last_end, end-1, end-last_end, end-last_end);
 		}
 	}
@@ -357,7 +361,7 @@ int ion_carveout_heap_map_iommu(struct ion_buffer *buffer,
 		goto out1;
 	}
 
-	sglist = kmalloc(sizeof(*sglist), GFP_KERNEL);
+	sglist = vmalloc(sizeof(*sglist));
 	if (!sglist)
 		goto out1;
 
@@ -381,13 +385,13 @@ int ion_carveout_heap_map_iommu(struct ion_buffer *buffer,
 		if (ret)
 			goto out2;
 	}
-	kfree(sglist);
+	vfree(sglist);
 	return ret;
 
 out2:
 	iommu_unmap_range(domain, data->iova_addr, buffer->size);
 out1:
-	kfree(sglist);
+	vfree(sglist);
 	msm_free_iova_address(data->iova_addr, domain_num, partition_num,
 				data->mapped_size);
 

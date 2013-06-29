@@ -438,7 +438,11 @@ static irqreturn_t vpe_parse_irq(int irq_num, void *data)
 }
 
 static struct msm_cam_clk_info vpe_clk_info[] = {
+#ifdef CONFIG_ARCH_APQ8064
 	{"vpe_clk", 160000000},
+#else
+	{"vpe_clk", 200000000},
+#endif
 	{"vpe_pclk", -1},
 };
 
@@ -505,7 +509,7 @@ int vpe_disable(void)
 	}
 	spin_unlock_irqrestore(&vpe_ctrl->lock, flags);
 
-	rc = wait_event_interruptible_timeout(vpe_ctrl->vpe_event_queue,
+	rc = wait_event_timeout(vpe_ctrl->vpe_event_queue,
 		vpe_ctrl->vpe_event_done, msecs_to_jiffies(500));
 
 	if (rc < 0)

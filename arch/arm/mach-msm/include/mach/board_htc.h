@@ -128,6 +128,10 @@ enum {
 };
 
 enum {
+	DEBUG_FLAG_DISABLE_PMIC_RESET = BIT(24)
+};
+
+enum {
 	MFG_MODE_NORMAL,
 	MFG_MODE_FACTORY2,
 	MFG_MODE_RECOVERY,
@@ -162,14 +166,19 @@ struct t_usb_status_notifier{
 void reset_dflipflop(void);
 #endif
 
-int __init board_mfg_mode(void);
+int board_mfg_mode(void);
 int __init parse_tag_smi(const struct tag *tags);
 int __init parse_tag_hwid(const struct tag * tags);
 int __init parse_tag_skuid(const struct tag * tags);
 int parse_tag_engineerid(const struct tag * tags);
+int __init parse_tag_smlog(const struct tag *tags);
 
 char *board_serialno(void);
 unsigned long get_kernel_flag(void);
+unsigned long get_debug_flag(void);
 unsigned int get_radio_flag(void);
-
+unsigned int get_tamper_sf(void);
+int get_ls_setting(void);
+int get_wifi_setting(void);
+int state_helper_register_notifier(void (*func)(void), const char *name);
 #endif

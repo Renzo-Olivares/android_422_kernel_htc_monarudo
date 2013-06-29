@@ -89,6 +89,8 @@ struct cable_detect_info {
 
 	int  audio_dock_lock;
 	int notify_init;
+	int (*detect_three_pogo_dock)(void);
+	int enable_vbus_usb_switch;
 } the_cable_info;
 
 
@@ -194,6 +196,9 @@ static void check_vbus_in(struct work_struct *w)
 {
 	int vbus_in;
 	int level;
+#if 0
+	int three_pogo_charging_type;
+#endif
 	struct cable_detect_info *pInfo = container_of(
 			w, struct cable_detect_info, vbus_detect_work.work);
 
@@ -221,10 +226,41 @@ static void check_vbus_in(struct work_struct *w)
 
 	pInfo->notify_init = 1;
 
+#if 0
+	if (pInfo->detect_three_pogo_dock) {
+		printk(KERN_INFO "[CABLE]cable detect_three_pogo_dock\n");
+		if (vbus_in && pInfo->accessory_type == DOCK_STATE_UNDOCKED) {
+			three_pogo_charging_type = pInfo->detect_three_pogo_dock();
+			printk(KERN_INFO "[CABLE]cable detect_three_pogo_dock return %d\n",three_pogo_charging_type);
+			if (three_pogo_charging_type > 0) {
+				switch_set_state(&dock_switch, DOCK_STATE_DESK);
+				pInfo->accessory_type = DOCK_STATE_THREE_POGO_DOCK;
+				CABLE_INFO("three pogo dock\n");
+				if (three_pogo_charging_type == 1)
+					send_cable_connect_notify(CONNECT_TYPE_USB);
+				else if (three_pogo_charging_type == 2)
+					send_cable_connect_notify(CONNECT_TYPE_AC);
+				wake_unlock(&pInfo->vbus_wlock);
+				return;
+			}
+		} else {
+			if (pInfo->accessory_type == DOCK_STATE_THREE_POGO_DOCK) {
+				
+				switch_set_state(&dock_switch, DOCK_STATE_UNDOCKED);
+				pInfo->accessory_type = DOCK_STATE_UNDOCKED;
+				CABLE_INFO("three pogo dock removed\n");
+				send_cable_connect_notify(CONNECT_TYPE_NONE);
+				wake_unlock(&pInfo->vbus_wlock);
+				return;
+			}
+		}
+	}
+#endif
+
 	if (vbus != vbus_in) {
 		vbus = vbus_in;
 
-		if(pInfo->accessory_type == DOCK_STATE_MHL) {
+		if(pInfo->accessory_type == DOCK_STATE_MHL && pInfo->enable_vbus_usb_switch == 0) {
 			CABLE_INFO("%s: usb_uart switch, MHL cable , Do nothing\n", __func__);
 		} else {
 			if (pInfo->usb_uart_switch)
@@ -506,6 +542,17 @@ void set_mfg_usb_carkit_enable(int enable)
 int cable_get_accessory_type(void)
 {
 	return the_cable_info.accessory_type;
+}
+
+int check_three_pogo_dock(void)
+{
+	int three_pogo_charging_type;
+	if (the_cable_info.detect_three_pogo_dock) {
+		three_pogo_charging_type = the_cable_info.detect_three_pogo_dock();
+		printk(KERN_INFO "[CABLE]cable detect_three_pogo_dock return %d\n",three_pogo_charging_type);
+		return three_pogo_charging_type;
+	}
+	return 0;
 }
 
 static int cable_detect_get_adc(void)
@@ -887,7 +934,8 @@ static int cable_detect_probe(struct platform_device *pdev)
 		pInfo->mhl_version_ctrl_flag = pdata->mhl_version_ctrl_flag;
 		pInfo->mhl_1v2_power = pdata->mhl_1v2_power;
 		pInfo->get_adc_cb = pdata->get_adc_cb;
-
+		pInfo->detect_three_pogo_dock = pdata->detect_three_pogo_dock;
+		pInfo->enable_vbus_usb_switch = pdata->enable_vbus_usb_switch;
 #endif
 
 		if (pdata->is_wireless_charger)
@@ -956,53 +1004,21 @@ static int cable_detect_probe(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_KDDI_ADAPTER
-#define VBUS_DEBOUNCE_TIME	500
-#define MSPERIOD(end, start)  ktime_to_ms(ktime_sub(end, start))
-#endif
 irqreturn_t cable_detection_vbus_irq_handler(void)
 {
 	unsigned long flags;
-#ifdef CONFIG_KDDI_ADAPTER
-	static int previous_vbus = -1,current_vbus = -1;
-	static int firstdrop = 0;
-	static ktime_t end_ktime;
-	static ktime_t cable_remove_ktime;
-	s64 diff = 0;
-#endif
 	struct cable_detect_info *pInfo = &the_cable_info;
 
 	CABLE_INFO("%s\n", __func__);
 #ifdef CONFIG_KDDI_ADAPTER
-	if (previous_vbus  == -1)
-		previous_vbus = current_vbus = pm8921_is_pwr_src_plugged_in();
-	else {
-		current_vbus = pm8921_is_pwr_src_plugged_in();
-		if(previous_vbus == 1 && current_vbus  == 0) { 
-			cable_remove_ktime = ktime_get();
-			firstdrop  = 1;
-		} else if (previous_vbus == 0 && current_vbus  == 1 && firstdrop == 1) { 
-			end_ktime = ktime_get();
-			diff = MSPERIOD(end_ktime, cable_remove_ktime);
-			printk("=============diff %lld\n",diff);
-			if (diff < VBUS_DEBOUNCE_TIME) {
-				spin_lock_irqsave(&pInfo->lock, flags);
-				__cancel_delayed_work(&pInfo->vbus_detect_work); 
-				spin_unlock_irqrestore(&pInfo->lock, flags);
-				previous_vbus = current_vbus;
-				printk("==========cancel pending\n");
-				return IRQ_HANDLED;
-			}
-		}
-		previous_vbus = current_vbus;
-	}
+	__cancel_delayed_work(&pInfo->vbus_detect_work);
+	queue_delayed_work(pInfo->cable_detect_wq,
+			&pInfo->vbus_detect_work, HZ / 2);
 	CABLE_INFO("%s go\n", __func__);
 #endif
 
 	spin_lock_irqsave(&pInfo->lock, flags);
 #ifdef CONFIG_KDDI_ADAPTER
-	queue_delayed_work(pInfo->cable_detect_wq,
-			&pInfo->vbus_detect_work, HZ / 2);
 #else
 	queue_delayed_work(pInfo->cable_detect_wq,
 			&pInfo->vbus_detect_work, HZ/10);

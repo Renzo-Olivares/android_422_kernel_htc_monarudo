@@ -133,6 +133,20 @@ struct tag_als_kadc {
 	__u32 kadc;
 };
 
+#define ATAG_BLDR_LOG	0x54410024
+
+struct tag_bldr_log {
+	__u32 addr;
+	__u32 size;
+};
+
+#define ATAG_LAST_BLDR_LOG	0x54410025
+
+struct tag_last_bldr_log {
+	__u32 addr;
+	__u32 size;
+};
+
 struct tag {
 	struct tag_header hdr;
 	union {
@@ -149,6 +163,8 @@ struct tag {
 		struct tag_acorn	acorn;
 
 		struct tag_memclk	memclk;
+		struct tag_bldr_log	bldr_log;
+		struct tag_last_bldr_log last_bldr_log;
 	} u;
 };
 

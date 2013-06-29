@@ -210,6 +210,9 @@
 
 #define NR_SG		128
 
+#ifdef CONFIG_WIMAX
+#define MSM_MMC_WIMAX_IDLE_TIMEOUT	1000 
+#endif
 #define MSM_MMC_IDLE_TIMEOUT	5000 
 #define MSM_MMC_IDLE_TIMEOUT_EMMC	20 
 #define MSM_MMC_CLK_GATE_DELAY	200 
@@ -302,8 +305,9 @@ struct msmsdcc_sps_data {
 	unsigned int			dest_pipe_index;
 	unsigned int			busy;
 	unsigned int			xfer_req_cnt;
-	bool				pipe_reset_pending;
-	bool				reset_device;
+	bool                            pipe_reset_pending;
+	bool                            reset_device;
+	bool                            reset_bam;
 	struct tasklet_struct		tlet;
 };
 
@@ -355,6 +359,9 @@ struct msmsdcc_host {
 #ifdef CONFIG_WIFI_MMC
     unsigned long       irq_time;
 #endif
+#ifdef CONFIG_WIMAX
+    unsigned long       irq_time_wimax;
+#endif
 
 	struct msmsdcc_dma_data	dma;
 	struct msmsdcc_sps_data sps;
@@ -387,6 +394,8 @@ struct msmsdcc_host {
 	bool io_pad_pwr_switch;
 	bool tuning_in_progress;
 	bool tuning_needed;
+	bool tuning_done;
+	bool en_auto_cmd19;
 	bool sdio_gpio_lpm;
 	bool irq_wake_enabled;
 	struct pm_qos_request pm_qos_req_dma;
@@ -395,18 +404,33 @@ struct msmsdcc_host {
 	bool sdcc_irq_disabled;
 	bool sdcc_suspended;
 	bool sdio_wakeupirq_disabled;
+	ktime_t enable_t;
+	ktime_t disable_t;
+	ktime_t rpm_sus_t;
+	ktime_t rpm_res_t;
 	struct mutex clk_mutex;
+	struct mutex rpm_mutex;
+	atomic_t enable_count_usage;
+	atomic_t disable_count_usage;
 	bool pending_resume;
 	struct msmsdcc_msm_bus_vote msm_bus_vote;
 	struct device_attribute	max_bus_bw;
 	struct device_attribute	polling;
+	struct device_attribute auto_cmd19_attr;
 	struct proc_dir_entry *wr_perf_proc;
 	struct proc_dir_entry *burst_proc;
 	struct proc_dir_entry *bkops_proc;
+	struct proc_dir_entry *speed_class;
 
 #ifdef CONFIG_WIFI_MMC
     bool is_runtime_resumed;
 #endif
+#ifdef CONFIG_WIMAX
+    bool is_runtime_resumed_wimax;
+#endif
+	
+	unsigned int cont_tuning_cnt;
+	
 
 };
 
@@ -418,6 +442,9 @@ struct msmsdcc_host {
 #define MSMSDCC_REG_WR_ACTIVE	(1 << 4)
 #define MSMSDCC_SW_RST		(1 << 5)
 #define MSMSDCC_SW_RST_CFG	(1 << 6)
+#define MSMSDCC_WAIT_FOR_TX_RX	(1 << 7)
+#define MSMSDCC_IO_PAD_PWR_SWITCH	(1 << 8)
+#define MSMSDCC_AUTO_CMD19	(1 << 9)
 
 #define set_hw_caps(h, val)		((h)->hw_caps |= val)
 #define is_sps_mode(h)			((h)->hw_caps & MSMSDCC_SPS_BAM_SUP)
@@ -427,6 +454,9 @@ struct msmsdcc_host {
 #define is_wait_for_reg_write(h)	((h)->hw_caps & MSMSDCC_REG_WR_ACTIVE)
 #define is_sw_hard_reset(h)		((h)->hw_caps & MSMSDCC_SW_RST)
 #define is_sw_reset_save_config(h)	((h)->hw_caps & MSMSDCC_SW_RST_CFG)
+#define is_wait_for_tx_rx_active(h)	((h)->hw_caps & MSMSDCC_WAIT_FOR_TX_RX)
+#define is_io_pad_pwr_switch(h)	((h)->hw_caps & MSMSDCC_IO_PAD_PWR_SWITCH)
+#define is_auto_cmd19(h)		((h)->hw_caps & MSMSDCC_AUTO_CMD19)
 
 static inline void set_default_hw_caps(struct msmsdcc_host *host)
 {
@@ -440,7 +470,9 @@ static inline void set_default_hw_caps(struct msmsdcc_host *host)
 	version &= MSMSDCC_VERSION_MASK;
 	if (version) 
 		host->hw_caps |= MSMSDCC_AUTO_PROG_DONE |
-			MSMSDCC_SOFT_RESET | MSMSDCC_REG_WR_ACTIVE;
+			MSMSDCC_SOFT_RESET | MSMSDCC_REG_WR_ACTIVE
+			| MSMSDCC_WAIT_FOR_TX_RX | MSMSDCC_IO_PAD_PWR_SWITCH
+			| MSMSDCC_AUTO_CMD19;
 
 	if (version >= 0x2D) 
 		host->hw_caps |= MSMSDCC_SW_RST | MSMSDCC_SW_RST_CFG;
@@ -465,6 +497,13 @@ static inline int msmsdcc_lpm_disable(struct mmc_host *mmc)
 	wake_unlock(&host->sdio_wlock);
 	return ret;
 }
+#endif
+
+#ifdef CONFIG_WIMAX
+extern int mmc_wimax_get_status(void);
+extern void mmc_wimax_enable_host_wakeup(int on);
+extern int mmc_wimax_get_disable_irq_config(void);
+extern int mmc_wimax_get_irq_log(void);
 #endif
 
 #endif

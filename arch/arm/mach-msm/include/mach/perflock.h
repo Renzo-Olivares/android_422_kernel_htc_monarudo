@@ -57,6 +57,8 @@ struct perflock_pdata {
 
 
 #ifndef CONFIG_PERFLOCK
+static inline void perf_lock_init(struct perf_lock *lock, unsigned int type,
+	unsigned int level, const char *name) { return; }
 static inline void perf_lock(struct perf_lock *lock) { return; }
 static inline void perf_unlock(struct perf_lock *lock) { return; }
 static inline int is_perf_lock_active(struct perf_lock *lock) { return 0; }
@@ -68,9 +70,7 @@ static inline int perflock_override(const struct cpufreq_policy *policy) { retur
 static inline struct perf_lock *perflock_acquire(const char *name) { return NULL; }
 static inline int perflock_release(const char *name) { return 0; }
 #else
-extern void perf_lock_init(struct perf_lock *lock,
-	unsigned int level, const char *name);
-extern void perf_lock_init_v2(struct perf_lock *lock,
+extern void perf_lock_init(struct perf_lock *lock, unsigned int type,
 	unsigned int level, const char *name);
 extern void perf_lock(struct perf_lock *lock);
 extern void perf_unlock(struct perf_lock *lock);

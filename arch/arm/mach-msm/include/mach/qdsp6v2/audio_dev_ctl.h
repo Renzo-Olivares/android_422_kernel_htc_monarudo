@@ -102,6 +102,10 @@ void msm_release_voc_thread(void);
 
 int snddev_voice_set_volume(int vol, int path);
 
+#ifdef CONFIG_MACH_DUMMY
+int msm_get_call_state(void);
+#endif
+
 struct auddev_evt_voc_devinfo {
 	u32 dev_type; 
 	u32 acdb_dev_id; 

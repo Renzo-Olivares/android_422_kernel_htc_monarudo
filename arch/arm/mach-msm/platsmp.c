@@ -35,10 +35,10 @@
 
 extern void msm_secondary_startup(void);
 
-#define CPU0_EXIT_KERNEL_COUNTER_BASE			(MSM_KERNEL_FOOTPRINT_BASE + 0x10)
-#define CPU1_EXIT_KERNEL_COUNTER_BASE			(MSM_KERNEL_FOOTPRINT_BASE + 0x14)
-#define CPU2_EXIT_KERNEL_COUNTER_BASE			(MSM_KERNEL_FOOTPRINT_BASE + 0x18)
-#define CPU3_EXIT_KERNEL_COUNTER_BASE			(MSM_KERNEL_FOOTPRINT_BASE + 0x1C)
+#define CPU0_EXIT_KERNEL_COUNTER_BASE			(CPU_FOOT_PRINT_BASE + 0x10)
+#define CPU1_EXIT_KERNEL_COUNTER_BASE			(CPU_FOOT_PRINT_BASE + 0x14)
+#define CPU2_EXIT_KERNEL_COUNTER_BASE			(CPU_FOOT_PRINT_BASE + 0x18)
+#define CPU3_EXIT_KERNEL_COUNTER_BASE			(CPU_FOOT_PRINT_BASE + 0x1C)
 static void init_cpu_debug_counter_for_cold_boot(void)
 {
 	*(unsigned *)CPU0_EXIT_KERNEL_COUNTER_BASE = 0x0;
@@ -92,6 +92,11 @@ static int __cpuinit krait_release_secondary_sim(unsigned long base, int cpu)
 	if (machine_is_apq8064_sim())
 		writel_relaxed(0xf0000, base_ptr+0x04);
 
+	if (machine_is_msm8974_sim()) {
+		writel_relaxed(0x800, base_ptr+0x04);
+		writel_relaxed(0x3FFF, base_ptr+0x14);
+	}
+
 	mb();
 	iounmap(base_ptr);
 	return 0;
@@ -107,18 +112,34 @@ static int __cpuinit krait_release_secondary(unsigned long base, int cpu)
 
 	writel_relaxed(0x109, base_ptr+0x04);
 	writel_relaxed(0x101, base_ptr+0x04);
+	mb();
 	ndelay(300);
 
 	writel_relaxed(0x121, base_ptr+0x04);
+	mb();
 	udelay(2);
 
+#ifdef CONFIG_APQ8064_ONLY
+	writel_relaxed(0x120, base_ptr+0x04);
+#else
 	writel_relaxed(0x020, base_ptr+0x04);
+#endif
+	mb();
 	udelay(2);
 
+#ifdef CONFIG_APQ8064_ONLY
+	writel_relaxed(0x100, base_ptr+0x04);
+#else
 	writel_relaxed(0x000, base_ptr+0x04);
+#endif
+	mb();
 	udelay(100);
 
+#ifdef CONFIG_APQ8064_ONLY
+	writel_relaxed(0x180, base_ptr+0x04);
+#else
 	writel_relaxed(0x080, base_ptr+0x04);
+#endif
 	mb();
 	iounmap(base_ptr);
 	return 0;
@@ -135,8 +156,11 @@ static int __cpuinit release_secondary(unsigned int cpu)
 	    machine_is_apq8064_sim())
 		return krait_release_secondary_sim(0x02088000, cpu);
 
+	if (machine_is_msm8974_sim())
+		return krait_release_secondary_sim(0xf9088000, cpu);
+
 	if (cpu_is_msm8960() || cpu_is_msm8930() || cpu_is_msm8930aa() ||
-	    cpu_is_apq8064() || cpu_is_msm8627())
+	    cpu_is_apq8064() || cpu_is_msm8627() || cpu_is_apq8064ab())
 		return krait_release_secondary(0x02088000, cpu);
 
 	WARN(1, "unknown CPU case in release_secondary\n");

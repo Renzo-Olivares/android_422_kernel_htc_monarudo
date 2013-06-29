@@ -729,6 +729,11 @@ static void neigh_periodic_work(struct work_struct *work)
 				lockdep_is_held(&tbl->lock))) != NULL) {
 			unsigned int state;
 
+            if (IS_ERR(n)) {
+                printk("[NET] neighbour is NULL in %s\n", __func__);
+                break;
+            }
+
 			write_lock(&n->lock);
 
 			state = n->nud_state;

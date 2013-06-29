@@ -49,6 +49,10 @@
 
 #define __DISABLED_CHAR '\0'
 
+#if defined(CONFIG_MSM_SMD0_WQ)
+extern struct workqueue_struct *tty_wq;
+#endif
+
 struct tty_buffer {
 	struct tty_buffer *next;
 	char *char_buf_ptr;

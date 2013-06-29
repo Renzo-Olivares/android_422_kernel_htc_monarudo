@@ -16,7 +16,6 @@
 #include <linux/msm_mdp.h>
 #include "mdp.h"
 #include "mdp4.h"
-#include <mach/msm_rtb_enable.h>
 
 #define MDP4_CSC_MV_OFF		0x4400
 #define MDP4_CSC_PRE_BV_OFF	0x4500

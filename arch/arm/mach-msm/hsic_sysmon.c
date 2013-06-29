@@ -398,6 +398,12 @@ static int hsic_sysmon_resume(struct usb_interface *ifc)
 	return 0;
 }
 
+static int hsic_sysmon_reset_resume(struct usb_interface *ifc)
+{
+	pr_info("%s\n", __func__);
+	return 0;
+}
+
 static const struct usb_device_id hsic_sysmon_ids[] = {
 	{ USB_DEVICE(0x5c6, 0x9048), .driver_info = 1, },
 	{ USB_DEVICE(0x5c6, 0x904C), .driver_info = 1, },
@@ -411,6 +417,7 @@ static struct usb_driver hsic_sysmon_driver = {
 	.disconnect =	hsic_sysmon_disconnect,
 	.suspend =	hsic_sysmon_suspend,
 	.resume =	hsic_sysmon_resume,
+	.reset_resume =	hsic_sysmon_reset_resume,
 	.id_table =	hsic_sysmon_ids,
 	.supports_autosuspend = 1,
 };

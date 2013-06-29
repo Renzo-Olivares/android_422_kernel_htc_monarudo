@@ -283,6 +283,9 @@
 #include <asm/uaccess.h>
 #include <asm/ioctls.h>
 
+#define HTC_LARGE_TCP_MEM 1
+#define HTC_LARGE_TCP_MEM_MUTI 8
+
 int sysctl_tcp_fin_timeout __read_mostly = TCP_FIN_TIMEOUT;
 
 struct percpu_counter tcp_orphan_count;
@@ -1724,6 +1727,12 @@ void tcp_close(struct sock *sk, long timeout)
 	int data_was_unread = 0;
 	int state;
 
+#ifdef CONFIG_HTC_NETWORK_MODIFY
+	if (IS_ERR(sk) || (!sk)) {
+		printk("[NET] sk is NULL in %s\n", __func__);
+		return;
+	}
+#endif
 	lock_sock(sk);
 	sk->sk_shutdown = SHUTDOWN_MASK;
 
@@ -2919,10 +2928,25 @@ __setup("thash_entries=", set_thash_entries);
 void tcp_init_mem(struct net *net)
 {
 	unsigned long limit = nr_free_buffer_pages() / 8;
+
+#ifdef HTC_LARGE_TCP_MEM
+	printk(KERN_ERR "[NET]%s:limit=%lu,128UL=%lu\n", __func__,limit,128UL);
+#endif 
+
 	limit = max(limit, 128UL);
+
+#ifdef HTC_LARGE_TCP_MEM
+	limit = limit * HTC_LARGE_TCP_MEM_MUTI;
+	
+#endif 
 	net->ipv4.sysctl_tcp_mem[0] = limit / 4 * 3;
 	net->ipv4.sysctl_tcp_mem[1] = limit;
 	net->ipv4.sysctl_tcp_mem[2] = net->ipv4.sysctl_tcp_mem[0] * 2;
+
+#ifdef HTC_LARGE_TCP_MEM
+	printk(KERN_INFO "[NET]%s:limit=%lu,tcp_mem[0]=%lu,tcp_mem[1]=%lu,tcp_mem[2]=%lu\n", __func__,limit,net->ipv4.sysctl_tcp_mem[0],net->ipv4.sysctl_tcp_mem[1],net->ipv4.sysctl_tcp_mem[2]);
+#endif 
+
 }
 
 void __init tcp_init(void)

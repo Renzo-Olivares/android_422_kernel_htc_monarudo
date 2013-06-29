@@ -43,6 +43,7 @@
 #define TPA9887_ENABLE_DSP	_IOW(TPA9887_IOCTL_MAGIC, 0x03, unsigned int)
 #define TPA9887_WRITE_L_CONFIG	_IOW(TPA9887_IOCTL_MAGIC, 0x04, unsigned int)
 #define TPA9887_READ_L_CONFIG	_IOW(TPA9887_IOCTL_MAGIC, 0x05, unsigned int)
+#define TPA9887_KERNEL_LOCK    _IOW(TPA9887_IOCTL_MAGIC, 0x06, unsigned int)
 #define DEBUG (0)
 
 static struct i2c_client *this_client;
@@ -151,13 +152,19 @@ static const struct file_operations codec_debug_ops = {
 	.read = codec_debug_read
 };
 #endif
-
+#ifdef CONFIG_AMP_TFA9887L
+unsigned char cf_dsp_bypass[3][3] = {
+	{0x04, 0x88, 0x53},
+	{0x09, 0x06, 0x19},
+	{0x09, 0x06, 0x18}
+};
+#else
 unsigned char cf_dsp_bypass[3][3] = {
 	{0x04, 0x88, 0x0B},
 	{0x09, 0x06, 0x19},
 	{0x09, 0x06, 0x18}
 };
-
+#endif
 unsigned char amp_off[1][3] = {
 	{0x09, 0x06, 0x19}
 };
@@ -226,21 +233,17 @@ static int tfa9887_open(struct inode *inode, struct file *file)
 {
 	int rc = 0;
 
-	mutex_lock(&spk_amp_lock);
-
 	if (tfa9887_opened) {
 		pr_info("%s: busy\n", __func__);
 	}
 	tfa9887_opened = 1;
-	mutex_unlock(&spk_amp_lock);
+
 	return rc;
 }
 
 static int tfa9887_release(struct inode *inode, struct file *file)
 {
-	mutex_lock(&spk_amp_lock);
 	tfa9887_opened = 0;
-	mutex_unlock(&spk_amp_lock);
 
 	return 0;
 }
@@ -248,12 +251,13 @@ static int tfa9887_release(struct inode *inode, struct file *file)
 void set_tfa9887_spkamp(int en, int dsp_mode)
 {
 	int i =0;
-        unsigned char write_reg[1] = {0x03};
-        unsigned char write_data[2] = {0, 0};
+        
+        
         unsigned char mute_reg[1] = {0x06};
 	unsigned char mute_data[3] = {0, 0, 0};
         unsigned char power_reg[1] = {0x09};
 	unsigned char power_data[3] = {0, 0, 0};
+	unsigned char SPK_CR[3] = {0x8, 0x8, 0};
 
 	pr_info("%s: en = %d dsp_enabled = %d\n", __func__, en, dsp_enabled);
 	mutex_lock(&spk_amp_lock);
@@ -263,9 +267,14 @@ void set_tfa9887_spkamp(int en, int dsp_mode)
 		if (dsp_enabled == 0) {
 			for (i=0; i <3 ; i++)
 				tfa9887_i2c_write(cf_dsp_bypass[i], 3);
+                
+				tfa9887_i2c_write(SPK_CR,1);
+				tfa9887_i2c_read(SPK_CR+1,2);
+				SPK_CR[1] |= 0x4; 
+				tfa9887_i2c_write(SPK_CR,3);
 		} else {
-			tfa9887_i2c_write(write_reg, 1);
-			tfa9887_i2c_read(write_data, 2);
+			
+			
 			tfa9887_i2c_write(power_reg, 1);
 			tfa9887_i2c_read(power_data + 1, 2);
 			tfa9887_i2c_write(mute_reg, 1);
@@ -282,8 +291,8 @@ void set_tfa9887_spkamp(int en, int dsp_mode)
 		if (dsp_enabled == 0) {
 			tfa9887_i2c_write(amp_off[0], 3);
 		} else {
-			tfa9887_i2c_write(write_reg, 1);
-			tfa9887_i2c_read(write_data, 2);
+			
+			
 			tfa9887_i2c_write(power_reg, 1);
 			tfa9887_i2c_read(power_data + 1, 2);
 			tfa9887_i2c_write(mute_reg, 1);
@@ -312,21 +321,21 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 	case TPA9887_WRITE_CONFIG:
 		pr_debug("%s: TPA9887_WRITE_CONFIG\n", __func__);
 		rc = copy_from_user(reg_value, argp, sizeof(reg_value));
-		if (rc < 0) {
+		if (rc) {
 			pr_err("%s: copy from user failed.\n", __func__);
 			goto err;
 		}
 
 		len = reg_value[0];
 		addr = (char *)reg_value[1];
-		mutex_lock(&spk_amp_lock);
+
 		tfa9887_i2c_write(addr+1, len -1);
-		mutex_unlock(&spk_amp_lock);
+
 		break;
 	case TPA9887_READ_CONFIG:
 		pr_debug("%s: TPA9887_READ_CONFIG\n", __func__);
 		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
-		if (rc < 0) {
+		if (rc) {
 			pr_err("%s: copy from user failed.\n", __func__);
 			goto err;
 		}
@@ -336,7 +345,7 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 		tfa9887_i2c_read(addr, len);
 
 		rc = copy_to_user(argp, reg_value, sizeof(reg_value));
-		if (rc < 0) {
+		if (rc) {
 			pr_err("%s: copy to user failed.\n", __func__);
 			goto err;
 		}
@@ -345,7 +354,7 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 	case TPA9887_WRITE_L_CONFIG:
 		pr_debug("%s: TPA9887_WRITE_CONFIG_L\n", __func__);
 		rc = copy_from_user(reg_value, argp, sizeof(reg_value));
-		if (rc < 0) {
+		if (rc) {
 			pr_err("%s: copy from user failed.\n", __func__);
 			goto err;
 		}
@@ -357,7 +366,7 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 	case TPA9887_READ_L_CONFIG:
 		pr_debug("%s: TPA9887_READ_CONFIG_L\n", __func__);
 		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
-		if (rc < 0) {
+		if (rc) {
 			pr_err("%s: copy from user failed.\n", __func__);
 			goto err;
 		}
@@ -367,7 +376,7 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 		tfa9887_l_read(addr, len);
 
 		rc = copy_to_user(argp, reg_value, sizeof(reg_value));
-		if (rc < 0) {
+		if (rc) {
 			pr_err("%s: copy to user failed.\n", __func__);
 			goto err;
 		}
@@ -376,13 +385,28 @@ static long tfa9887_ioctl(struct file *file, unsigned int cmd,
 	case TPA9887_ENABLE_DSP:
 		pr_info("%s: TPA9887_ENABLE_DSP\n", __func__);
 		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
-		if (rc < 0) {
+		if (rc) {
 			pr_err("%s: copy from user failed.\n", __func__);
 			goto err;
 		}
 
 		len = reg_value[0];
 		dsp_enabled = reg_value[1];
+		break;
+	case TPA9887_KERNEL_LOCK:
+		rc = copy_from_user(reg_value, argp, sizeof(reg_value));;
+		if (rc) {
+		   pr_err("%s: copy from user failed.\n", __func__);
+		   goto err;
+		}
+
+		len = reg_value[0];
+		
+		pr_info("TPA9887_KLOCK1 %d\n", reg_value[1]);
+		if (reg_value[1])
+		   mutex_lock(&spk_amp_lock);
+		else
+		   mutex_unlock(&spk_amp_lock);
 		break;
 	}
 err:

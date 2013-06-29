@@ -51,7 +51,7 @@ uint32_t msm_gemini_platform_v2p(int fd, uint32_t len, struct file **file_p,
 		return 0;
 
 	rc = ion_map_iommu(gemini_client, *ionhandle, CAMERA_DOMAIN, GEN_POOL,
-			SZ_4K, 0, &paddr, (unsigned long *)&size, 0, 0);
+			SZ_4K, 0, &paddr, (unsigned long *)&size, UNCACHED, 0);
 #elif CONFIG_ANDROID_PMEM
 	unsigned long kvstart;
 	rc = get_pmem_file(fd, &paddr, &kvstart, &size, file_p);
@@ -148,11 +148,13 @@ int msm_gemini_platform_init(struct platform_device *pdev,
 			goto fail2;
 		}
 	} else {
+#ifndef CONFIG_ARCH_MSM8X60
 		rc = msm_cam_clk_enable(&pgmn_dev->pdev->dev,
 				gemini_imem_clk_info, &pgmn_dev->gemini_clk[2],
 				ARRAY_SIZE(gemini_imem_clk_info), 1);
 		if (!rc)
 			pgmn_dev->hw_version = GEMINI_8960;
+#endif 
 	}
 
 	if (pgmn_dev->hw_version != GEMINI_7X) {

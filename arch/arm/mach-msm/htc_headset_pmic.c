@@ -285,7 +285,7 @@ static irqreturn_t detect_irq_handler(int irq, void *data)
 	HS_LOG("Disable HPIN IRQ");
 	hrtimer_start(&hi->timer, ktime_set(0, 200*NSEC_PER_MSEC), HRTIMER_MODE_REL);
 	hpin_count_local = hpin_count_global++;
-	detect_pmic_work.insert = gpio_get_value_cansleep(hi->pdata.hpin_gpio);
+	detect_pmic_work.insert = gpio_get_value(hi->pdata.hpin_gpio);
 	HS_LOG("HPIN++%d++, value = %d, trigger_type = 0x%x", hpin_count_local, detect_pmic_work.insert, hi->hpin_irq_type);
 	hs_notify_hpin_irq();
 	HS_DBG();

@@ -658,7 +658,7 @@ int usb_wwan_startup(struct usb_serial *serial)
 	}
 #endif 
 
-	if (get_radio_flag() & 0x0008)
+	if (get_radio_flag() & 0x0001)
 		usb_pm_debug_enabled = true;
 
 	
@@ -717,6 +717,11 @@ int usb_wwan_startup(struct usb_serial *serial)
 			dbg("%s: submit irq_in urb failed %d", __func__, err);
 	}
 	usb_wwan_setup_urbs(serial);
+
+	
+	serial->interface->needs_remote_wakeup = 1;
+	
+
 	return 0;
 
 bail_out_error2:

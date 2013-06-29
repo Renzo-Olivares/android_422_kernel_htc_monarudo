@@ -15,7 +15,7 @@
 #include <mach/qdsp6v2/apr.h>
 #include <sound/apr_audio.h>
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-#include <linux/msm_ion.h>
+#include <linux/ion.h>
 #endif
 
 #define IN                      0x000
@@ -68,6 +68,8 @@
 
 #define SR_CM_NOTIFY_ENABLE	0x0004
 
+#define TUN_WRITE_IO_MODE 0x0008 
+#define TUN_READ_IO_MODE  0x0004 
 #define ASYNC_IO_MODE	0x0002
 #define SYNC_IO_MODE	0x0001
 #define NO_TIMESTAMP    0xFF00
@@ -187,6 +189,8 @@ int q6asm_open_read(struct audio_client *ac, uint32_t format);
 int q6asm_open_read_compressed(struct audio_client *ac, uint32_t format);
 
 int q6asm_open_write(struct audio_client *ac, uint32_t format);
+int q6asm_open_write_v2(struct audio_client *ac, uint32_t format,
+						uint16_t bit_width);
 
 int q6asm_open_write_compressed(struct audio_client *ac, uint32_t format);
 
@@ -276,8 +280,15 @@ int q6asm_enc_cfg_blk_amrwb(struct audio_client *ac, uint32_t frames_per_buf,
 int q6asm_media_format_block_pcm(struct audio_client *ac,
 			uint32_t rate, uint32_t channels);
 
+int q6asm_media_format_block_pcm_format_support(struct audio_client *ac,
+			uint32_t rate, uint32_t channels, uint16_t bit_width);
+
 int q6asm_media_format_block_multi_ch_pcm(struct audio_client *ac,
 				uint32_t rate, uint32_t channels);
+
+int q6asm_media_format_block_multi_ch_pcm_format_support(
+		struct audio_client *ac, uint32_t rate, uint32_t channels,
+		uint16_t bit_width);
 
 int q6asm_media_format_block_aac(struct audio_client *ac,
 			struct asm_aac_cfg *cfg);

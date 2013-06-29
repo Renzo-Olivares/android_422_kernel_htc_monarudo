@@ -90,6 +90,7 @@ struct tabla_codec_dai_data {
 	u32 *ch_num;
 	u32 ch_act;
 	u32 ch_tot;
+	u32 bit_width;
 	u32 ch_mask;
 	wait_queue_head_t dai_wait;
 };
@@ -928,8 +929,8 @@ static void audio_vol_ramping_func(struct work_struct *work)
 	index = level > 0 ? level: -level;
 
 	if (vol_gain == vol_control){
-		pr_info("%s, force volume set without ramping value =%d\n", __func__, vol_control);
 		if (!vol_ramp->ramp_type) {
+            pr_info("%s, force volume set without ramping value =%d\n", __func__, vol_control);
 			snd_soc_update_bits(codec, TABLA_A_RX_HPH_L_GAIN, 0x0F,
 					(HPH_RX_GAIN_MAX - vol_control));
 			snd_soc_update_bits(codec, TABLA_A_RX_HPH_R_GAIN, 0x0F,
@@ -944,8 +945,11 @@ static void audio_vol_ramping_func(struct work_struct *work)
 			snd_soc_update_bits(codec, TABLA_A_RX_LINE_4_GAIN, 0x0F,
 					(HPH_RX_GAIN_MAX - vol_control));
 		}
-		return;
-	}
+	return;
+    }
+
+	if (vol_ramp->ramp_type)
+		usleep_range(300000, 300000);
 
 	for (i = 0; i < index; i++) {
 		if (level > 0) {
@@ -1128,6 +1132,8 @@ static const struct snd_kcontrol_new tabla_snd_controls[] = {
 	SOC_SINGLE_TLV("AUX_PGA_RIGHT Volume", TABLA_A_AUX_R_GAIN, 0, 39, 0,
 		aux_pga_gain),
 
+	SOC_SINGLE("MICBIAS1 PD MODE", TABLA_A_MICB_1_CTL, 0, 1, 0),
+	SOC_SINGLE("MICBIAS3 PD MODE", TABLA_A_MICB_3_CTL, 0, 1, 0),
 	SOC_SINGLE("MICBIAS1 CAPLESS Switch", TABLA_A_MICB_1_CTL, 4, 1, 1),
 	SOC_SINGLE("MICBIAS2 CAPLESS Switch", TABLA_A_MICB_2_CTL, 4, 1, 1),
 	SOC_SINGLE("MICBIAS3 CAPLESS Switch", TABLA_A_MICB_3_CTL, 4, 1, 1),
@@ -2289,7 +2295,7 @@ static int tabla_codec_enable_anc(struct snd_soc_dapm_widget *w,
 			return -ENODEV;
 		}
 
-		if (fw->size < sizeof(struct anc_header)) {
+		if (!fw || (fw->size < sizeof(struct anc_header))) {
 			dev_err(codec->dev, "Not enough data\n");
 			release_firmware(fw);
 			return -ENOMEM;
@@ -3761,7 +3767,7 @@ static int tabla_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 	return 0;
 }
 
-#define TABLA_FORMATS (SNDRV_PCM_FMTBIT_S16_LE)
+#define TABLA_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FORMAT_S24_LE)
 static int tabla_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
@@ -4455,6 +4461,29 @@ static int tabla_hw_params(struct snd_pcm_substream *substream,
 			snd_soc_update_bits(codec, TABLA_A_CDC_CLK_RX_I2S_CTL,
 					0x03, (rx_fs_rate_reg_val >> 0x05));
 		} else {
+			switch (params_format(params)) {
+			case SNDRV_PCM_FORMAT_S16_LE:
+				snd_soc_update_bits(codec,
+					TABLA_A_CDC_CONN_RX_SB_B1_CTL,
+					0xFF, 0x80);
+				snd_soc_update_bits(codec,
+					TABLA_A_CDC_CONN_RX_SB_B2_CTL,
+					0xFF, 0xAA);
+				tabla->dai[dai->id - 1].bit_width = 16;
+				break;
+			case SNDRV_PCM_FORMAT_S24_LE:
+				snd_soc_update_bits(codec,
+					TABLA_A_CDC_CONN_RX_SB_B1_CTL,
+					0xFF, 0x00);
+				snd_soc_update_bits(codec,
+					TABLA_A_CDC_CONN_RX_SB_B2_CTL,
+					0xFF, 0xA8);
+				tabla->dai[dai->id - 1].bit_width = 24;
+				break;
+			default:
+				dev_err(codec->dev, "Invalid format\n");
+				break;
+			}
 			tabla->dai[dai->id - 1].rate   = params_rate(params);
 		}
 		break;
@@ -4667,14 +4696,24 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
+
+		if(j >= ARRAY_SIZE(tabla_dai))
+			break;
 		if (tabla_p->dai[j].ch_act == tabla_p->dai[j].ch_tot) {
 			ret = tabla_codec_enable_chmask(tabla_p,
 							SND_SOC_DAPM_POST_PMU,
 							j);
+
+			
+			if (tabla_p->dai[j].bit_width == 0)
+				tabla_p->dai[j].bit_width = 16;
+			
+
 			ret = wcd9xxx_cfg_slim_sch_rx(tabla,
 					tabla_p->dai[j].ch_num,
 					tabla_p->dai[j].ch_tot,
-					tabla_p->dai[j].rate);
+					tabla_p->dai[j].rate,
+					tabla_p->dai[j].bit_width);
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
@@ -4690,7 +4729,11 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-		if (!tabla_p->dai[j].ch_act) {
+
+		if(j >= ARRAY_SIZE(tabla_dai))
+			break;
+
+		if (!tabla_p->dai[j].ch_act && tabla_p->dai[j].ch_tot > 0) {
 			ret = wcd9xxx_close_slim_sch_rx(tabla,
 						tabla_p->dai[j].ch_num,
 						tabla_p->dai[j].ch_tot);
@@ -4760,6 +4803,8 @@ static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
+		if(j >= ARRAY_SIZE(tabla_dai))
+			break;
 		if (tabla_p->dai[j].ch_act == tabla_p->dai[j].ch_tot) {
 			ret = tabla_codec_enable_chmask(tabla_p,
 							SND_SOC_DAPM_POST_PMU,
@@ -4782,7 +4827,9 @@ static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-		if (!tabla_p->dai[j].ch_act) {
+		if(j >= ARRAY_SIZE(tabla_dai))
+			break;
+		if (!tabla_p->dai[j].ch_act && tabla_p->dai[j].ch_tot > 0) {
 			ret = wcd9xxx_close_slim_sch_tx(tabla,
 						tabla_p->dai[j].ch_num,
 						tabla_p->dai[j].ch_tot);
@@ -5986,6 +6033,9 @@ static bool tabla_mbhc_fw_validate(const struct firmware *fw)
 	u32 cfg_offset;
 	struct tabla_mbhc_imped_detect_cfg *imped_cfg;
 	struct tabla_mbhc_btn_detect_cfg *btn_cfg;
+
+	if (!fw)
+		return false;
 
 	if (fw->size < TABLA_MBHC_CAL_MIN_SIZE)
 		return false;
@@ -7689,10 +7739,6 @@ static const struct tabla_reg_mask_val tabla_codec_reg_init_val[] = {
 	{TABLA_A_CDC_CONN_TX_SB_B8_CTL, 0x60, 0x40},
 	{TABLA_A_CDC_CONN_TX_SB_B9_CTL, 0x60, 0x40},
 	{TABLA_A_CDC_CONN_TX_SB_B10_CTL, 0x60, 0x40},
-
-	
-	{TABLA_A_CDC_CONN_RX_SB_B1_CTL, 0xFF, 0xAA},
-	{TABLA_A_CDC_CONN_RX_SB_B2_CTL, 0xFF, 0xAA},
 
 	
 	{TABLA_A_CDC_TX1_MUX_CTL, 0x8, 0x0},

@@ -545,6 +545,22 @@ struct adm_multi_ch_copp_open_command {
 	u8 dev_channel_mapping[8];
 } __packed;
 
+#define ADM_CMD_MULTI_CHANNEL_COPP_OPEN_V2		 0x00010319
+
+struct adm_multi_ch_copp_open_command_v2 {
+	struct apr_hdr hdr;
+	u16 flags;
+	u16 mode; 
+	u16 endpoint_id1;
+	u16 endpoint_id2;
+	u32 topology_id;
+	u16 channel_config;
+	u16 bit_width;
+	u32 rate;
+	u8 dev_channel_mapping[8];
+} __packed;
+
+
 #define ADM_CMD_MEMORY_MAP				0x00010C30
 struct adm_cmd_memory_map{
 	struct apr_hdr	hdr;
@@ -709,6 +725,7 @@ struct adm_copp_open_respond {
 } __attribute__ ((packed));
 
 #define ADM_CMDRSP_MULTI_CHANNEL_COPP_OPEN               0x00010311
+#define ADM_CMDRSP_MULTI_CHANNEL_COPP_OPEN_V2            0x0001031A
 
 
 #define ASM_STREAM_PRIORITY_NORMAL	0
@@ -1032,6 +1049,8 @@ struct asm_stream_cmd_open_read_compressed {
 } __packed;
 
 #define ASM_STREAM_CMD_OPEN_WRITE                        0x00010BCA
+#define ASM_STREAM_CMD_OPEN_WRITE_V2                     0x00010D8F
+
 struct asm_stream_cmd_open_write {
 	struct apr_hdr hdr;
 	u32            uMode;
@@ -1040,6 +1059,15 @@ struct asm_stream_cmd_open_write {
 	u32            post_proc_top;
 	u32            format;
 } __attribute__((packed));
+
+struct asm_stream_cmd_open_write_v2 {
+	struct apr_hdr hdr;
+	u32            uMode;
+	u16            sink_endpoint;
+	u16            bits_per_sample;
+	u32            post_proc_top;
+	u32            format;
+} __packed;
 
 #define IEC_61937_MASK	0x00000001
 #define IEC_60958_MASK	0x00000002

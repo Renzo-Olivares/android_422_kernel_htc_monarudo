@@ -488,7 +488,7 @@ static int find_offmode_alarm(void)
                 }
         }
         pr_alarm(FLOW, "alarm(%u), snooze(%u)", nearest_alarm, nearest_alarm_snooze);
-        if(nearest_alarm_snooze <= nearest_alarm && nearest_alarm_snooze != 0)
+        if((nearest_alarm == 0 || nearest_alarm_snooze <= nearest_alarm) && nearest_alarm_snooze != 0)
                 return nearest_alarm_snooze;
         else
                 return nearest_alarm;

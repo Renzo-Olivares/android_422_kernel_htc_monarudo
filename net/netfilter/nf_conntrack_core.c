@@ -219,7 +219,12 @@ destroy_conntrack(struct nf_conntrack *nfct)
 
 void nf_ct_delete_from_lists(struct nf_conn *ct)
 {
-	struct net *net = nf_ct_net(ct);
+	struct net *net;
+
+    if (IS_ERR(ct))
+        return;
+
+    net = nf_ct_net(ct);
 
 	nf_ct_helper_destroy(ct);
 	spin_lock_bh(&nf_conntrack_lock);

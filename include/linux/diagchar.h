@@ -18,7 +18,7 @@
 #define EVENT_MASKS_TYPE		4
 #define PKT_TYPE			8
 #define DEINIT_TYPE			16
-#define USER_SPACE_LOG_TYPE		32
+#define USER_SPACE_DATA_TYPE		32
 #define DCI_DATA_TYPE			64
 
 #define USERMODE_DIAGFWD		2048
@@ -28,7 +28,8 @@
 #define MEMORY_DEVICE_MODE		2
 #define NO_LOGGING_MODE			3
 #define UART_MODE			4
-
+#define SOCKET_MODE			5
+#define CALLBACK_MODE			6
 #define DATA_TYPE_EVENT         	0
 #define DATA_TYPE_F3            	1
 #define DATA_TYPE_LOG           	2
@@ -42,7 +43,9 @@
 #define DIAG_IOCTL_DCI_DEINIT		21
 #define DIAG_IOCTL_DCI_SUPPORT		22
 #define DIAG_IOCTL_DCI_REG		23
-
+#define DIAG_IOCTL_DCI_STREAM_INIT	24
+#define DIAG_IOCTL_DCI_HEALTH_STATS	25
+#define DIAG_IOCTL_REMOTE_DEV		32
 #define DIAG_IOCTL_NONBLOCKING_TIMEOUT 64
 
 #define APQ8060_TOOLS_ID	4062
@@ -104,11 +107,11 @@
 
 #define MSG_LVL_NONE			0
 
-#define MSG_MASK_TBL_CNT		23
-#define EVENT_LAST_ID			0x08AD
+#define MSG_MASK_TBL_CNT		24
+#define EVENT_LAST_ID			0x08C5
 
 #define MSG_SSID_0			0
-#define MSG_SSID_0_LAST			91
+#define MSG_SSID_0_LAST			93
 #define MSG_SSID_1			500
 #define MSG_SSID_1_LAST			506
 #define MSG_SSID_2			1000
@@ -153,6 +156,8 @@
 #define MSG_SSID_21_LAST		10300
 #define MSG_SSID_22			10350
 #define MSG_SSID_22_LAST		10361
+#define MSG_SSID_23			0xC000
+#define MSG_SSID_23_LAST		0xC063
 
 struct diagpkt_delay_params {
 	void *rsp_ptr;
@@ -666,23 +671,23 @@ static const uint32_t msg_bld_masks_21[] = {
 };
 
 static const uint32_t msg_bld_masks_22[] = {
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH,
-	MSG_LVL_HIGH
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW,
+	MSG_LVL_LOW
 };
 
 
 #define LOG_0	0x0
-#define LOG_1	0x15A7
+#define LOG_1	0x1636
 #define LOG_2	0x0
 #define LOG_3	0x0
 #define LOG_4	0x4910
@@ -699,5 +704,6 @@ static const uint32_t msg_bld_masks_22[] = {
 #define LOG_15	0x0
 
 #define LOG_GET_ITEM_NUM(xx_code) (xx_code & 0x0FFF)
+#define LOG_GET_EQUIP_ID(xx_code) ((xx_code & 0xF000) >> 12)
 
 #endif

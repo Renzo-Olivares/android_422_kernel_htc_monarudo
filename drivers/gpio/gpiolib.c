@@ -1039,6 +1039,10 @@ int gpio_request(unsigned gpio, const char *label)
 		status = 0;
 	} else {
 		status = -EBUSY;
+#ifdef CONFIG_DEBUG_FS
+		pr_err("gpio_request: request gpio-%d (%s) but already occupied by %s\n",
+			gpio, label ? : "?", desc->label ? : "unknown");
+#endif
 		module_put(chip->owner);
 		goto done;
 	}

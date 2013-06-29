@@ -21,14 +21,13 @@
 #define MAX_BUF 100
 #define MAX_ATTR_LEN 40
 
-static wait_queue_head_t sysfs_state_wq;
-
 struct kobject *cpufreq_kobj;
 static struct kobject *hotplug_kobj;
 static struct kobject *thermal_kobj;
 static struct kobject *apps_kobj;
 static struct kobject *pnpmgr_kobj;
 static struct kobject *adaptive_policy_kobj;
+static struct kobject *battery_kobj;
 
 #define define_string_show(_name, str_buf)				\
 static ssize_t _name##_show						\
@@ -72,7 +71,9 @@ static ssize_t _name##_store					\
 }
 
 static char activity_buf[MAX_BUF];
+static char non_activity_buf[MAX_BUF];
 static char media_mode_buf[MAX_BUF];
+static int app_timeout_expired;
 
 static void null_cb(const char *attr) {
 	do { } while (0);
@@ -82,26 +83,36 @@ define_string_show(activity_trigger, activity_buf);
 define_string_store(activity_trigger, activity_buf, null_cb);
 power_attr(activity_trigger);
 
+define_string_show(non_activity_trigger, non_activity_buf);
+define_string_store(non_activity_trigger, non_activity_buf, null_cb);
+power_attr(non_activity_trigger);
+
 define_string_show(media_mode, media_mode_buf);
 define_string_store(media_mode, media_mode_buf, null_cb);
 power_attr(media_mode);
-#ifdef CONFIG_ARCH_APQ8064
+
 static int thermal_c0_value;
+#if (CONFIG_NR_CPUS >= 2)
 static int thermal_c1_value;
+#if (CONFIG_NR_CPUS == 4)
 static int thermal_c2_value;
 static int thermal_c3_value;
+#endif
+#endif
 static int thermal_final_value;
 static int thermal_g0_value;
+static int thermal_batt_value;
 static int data_throttling_value;
 
 define_int_show(thermal_c0, thermal_c0_value);
 define_int_store(thermal_c0, thermal_c0_value, null_cb);
 power_attr(thermal_c0);
 
+#if (CONFIG_NR_CPUS >= 2)
 define_int_show(thermal_c1, thermal_c1_value);
 define_int_store(thermal_c1, thermal_c1_value, null_cb);
 power_attr(thermal_c1);
-
+#if (CONFIG_NR_CPUS == 4)
 define_int_show(thermal_c2, thermal_c2_value);
 define_int_store(thermal_c2, thermal_c2_value, null_cb);
 power_attr(thermal_c2);
@@ -109,6 +120,8 @@ power_attr(thermal_c2);
 define_int_show(thermal_c3, thermal_c3_value);
 define_int_store(thermal_c3, thermal_c3_value, null_cb);
 power_attr(thermal_c3);
+#endif
+#endif
 
 define_int_show(thermal_final, thermal_final_value);
 define_int_store(thermal_final, thermal_final_value, null_cb);
@@ -118,14 +131,15 @@ define_int_show(thermal_g0, thermal_g0_value);
 define_int_store(thermal_g0, thermal_g0_value, null_cb);
 power_attr(thermal_g0);
 
+define_int_show(thermal_batt, thermal_batt_value);
+define_int_store(thermal_batt, thermal_batt_value, null_cb);
+power_attr(thermal_batt);
+
 define_int_show(pause_dt, data_throttling_value);
 define_int_store(pause_dt, data_throttling_value, null_cb);
 power_attr(pause_dt);
 
-static int mp_args_changed = 0;
-static char mp_changed_attr[MAX_ATTR_LEN] = {0};
-static DEFINE_SPINLOCK(mp_args_lock);
-
+#ifdef CONFIG_HOTPLUG_CPU
 static char mp_nw_arg[MAX_BUF];
 static char mp_tw_arg[MAX_BUF];
 static char mp_ns_arg[MAX_BUF];
@@ -133,74 +147,64 @@ static char mp_ts_arg[MAX_BUF];
 static int mp_decision_ms_value;
 static int mp_min_cpus_value;
 static int mp_max_cpus_value;
-
-static void update_mp_args(const char *attr)
-{
-	unsigned long irq_flags;
-
-	spin_lock_irqsave(&mp_args_lock, irq_flags);
-	if (mp_args_changed == 0) {
-		mp_args_changed = 1;
-		wake_up(&sysfs_state_wq);
-	}
-	snprintf(mp_changed_attr, strnlen(attr, MAX_ATTR_LEN) + 1, attr);
-	pr_debug("[PnPMgr]: update mp arg \"%s\"\n", mp_changed_attr);
-	spin_unlock_irqrestore(&mp_args_lock, irq_flags);
-}
+static int mp_spc_enabled_value;
+static int mp_sync_enabled_value;
+static char mp_util_high_and_arg[MAX_BUF];
+static char mp_util_high_or_arg[MAX_BUF];
+static char mp_util_low_and_arg[MAX_BUF];
+static char mp_util_low_or_arg[MAX_BUF];
 
 define_string_show(mp_nw, mp_nw_arg);
-define_string_store(mp_nw, mp_nw_arg, update_mp_args);
+define_string_store(mp_nw, mp_nw_arg, null_cb);
 power_attr(mp_nw);
 
 define_string_show(mp_tw, mp_tw_arg);
-define_string_store(mp_tw, mp_tw_arg, update_mp_args);
+define_string_store(mp_tw, mp_tw_arg, null_cb);
 power_attr(mp_tw);
 
 define_string_show(mp_ns, mp_ns_arg);
-define_string_store(mp_ns, mp_ns_arg, update_mp_args);
+define_string_store(mp_ns, mp_ns_arg, null_cb);
 power_attr(mp_ns);
 
 define_string_show(mp_ts, mp_ts_arg);
-define_string_store(mp_ts, mp_ts_arg, update_mp_args);
+define_string_store(mp_ts, mp_ts_arg, null_cb);
 power_attr(mp_ts);
 
 define_int_show(mp_decision_ms, mp_decision_ms_value);
-define_int_store(mp_decision_ms, mp_decision_ms_value, update_mp_args);
+define_int_store(mp_decision_ms, mp_decision_ms_value, null_cb);
 power_attr(mp_decision_ms);
 
 define_int_show(mp_min_cpus, mp_min_cpus_value);
-define_int_store(mp_min_cpus, mp_min_cpus_value, update_mp_args);
+define_int_store(mp_min_cpus, mp_min_cpus_value, null_cb);
 power_attr(mp_min_cpus);
 
 define_int_show(mp_max_cpus, mp_max_cpus_value);
-define_int_store(mp_max_cpus, mp_max_cpus_value, update_mp_args);
+define_int_store(mp_max_cpus, mp_max_cpus_value, null_cb);
 power_attr(mp_max_cpus);
 
-static ssize_t wait_for_mp_args_show(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	int ret;
-	unsigned long irq_flags;
+define_int_show(mp_spc_enabled, mp_spc_enabled_value);
+define_int_store(mp_spc_enabled, mp_spc_enabled_value, null_cb);
+power_attr(mp_spc_enabled);
 
-	ret = wait_event_interruptible(sysfs_state_wq, mp_args_changed == 1);
-	if (ret && mp_args_changed == 0)
-		return ret;
-	else {
-		spin_lock_irqsave(&mp_args_lock, irq_flags);
-		if(mp_args_changed == 1)
-			mp_args_changed = 0;
-		else {
-			spin_unlock_irqrestore(&mp_args_lock, irq_flags);
-			return ret;
-		}
-		ret = sprintf(buf, "%s", mp_changed_attr);
-		spin_unlock_irqrestore(&mp_args_lock, irq_flags);
+define_int_show(mp_sync_enabled, mp_sync_enabled_value);
+define_int_store(mp_sync_enabled, mp_sync_enabled_value, null_cb);
+power_attr(mp_sync_enabled);
 
-		sysfs_notify(hotplug_kobj, NULL, "wait_for_mp_args");
-	}
-	return ret;
-}
-power_ro_attr(wait_for_mp_args);
+define_string_show(mp_util_high_and, mp_util_high_and_arg);
+define_string_store(mp_util_high_and, mp_util_high_and_arg, null_cb);
+power_attr(mp_util_high_and);
+
+define_string_show(mp_util_high_or, mp_util_high_or_arg);
+define_string_store(mp_util_high_or, mp_util_high_or_arg, null_cb);
+power_attr(mp_util_high_or);
+
+define_string_show(mp_util_low_and, mp_util_low_and_arg);
+define_string_store(mp_util_low_and, mp_util_low_and_arg, null_cb);
+power_attr(mp_util_low_and);
+
+define_string_show(mp_util_low_or, mp_util_low_or_arg);
+define_string_store(mp_util_low_or, mp_util_low_or_arg, null_cb);
+power_attr(mp_util_low_or);
 #endif 
 
 #ifdef CONFIG_PERFLOCK
@@ -233,10 +237,33 @@ ssize_t
 cpu_hotplug_store(struct kobject *kobj, struct kobj_attribute *attr,
 		const char *buf, size_t n)
 {
+	sysfs_notify(hotplug_kobj, NULL, "cpu_hotplug");
 	return 0;
 }
 power_attr(cpu_hotplug);
 #endif
+
+static int charging_enabled_value;
+
+define_int_show(charging_enabled, charging_enabled_value);
+ssize_t
+charging_enabled_store(struct kobject *kobj, struct kobj_attribute *attr,
+		const char *buf, size_t n)
+{
+	return 0;
+}
+power_attr(charging_enabled);
+
+int pnpmgr_battery_charging_enabled(int charging_enabled)
+{
+	pr_debug("%s: result = %d\n", __func__, charging_enabled);
+	if (charging_enabled_value != charging_enabled) {
+		charging_enabled_value = charging_enabled;
+		sysfs_notify(battery_kobj, NULL, "charging_enabled");
+	}
+
+	return 0;
+}
 
 static struct attribute *cpufreq_g[] = {
 #ifdef CONFIG_PERFLOCK
@@ -247,8 +274,7 @@ static struct attribute *cpufreq_g[] = {
 };
 
 static struct attribute *hotplug_g[] = {
-#ifdef CONFIG_ARCH_APQ8064
-	
+#ifdef CONFIG_HOTPLUG_CPU
 	&mp_nw_attr.attr,
 	&mp_tw_attr.attr,
 	&mp_ns_attr.attr,
@@ -256,31 +282,73 @@ static struct attribute *hotplug_g[] = {
 	&mp_decision_ms_attr.attr,
 	&mp_min_cpus_attr.attr,
 	&mp_max_cpus_attr.attr,
-	&wait_for_mp_args_attr.attr,
-#endif
-#ifdef CONFIG_HOTPLUG_CPU
 	&cpu_hotplug_attr.attr,
+	&mp_spc_enabled_attr.attr,
+	&mp_sync_enabled_attr.attr,
+	&mp_util_high_and_attr.attr,
+	&mp_util_high_or_attr.attr,
+	&mp_util_low_and_attr.attr,
+	&mp_util_low_or_attr.attr,
 #endif
 	NULL,
 };
 
 static struct attribute *thermal_g[] = {
-#ifdef CONFIG_ARCH_APQ8064
-	
 	&thermal_c0_attr.attr,
+#if (CONFIG_NR_CPUS >= 2)
 	&thermal_c1_attr.attr,
+#if (CONFIG_NR_CPUS == 4)
 	&thermal_c2_attr.attr,
 	&thermal_c3_attr.attr,
+#endif
+#endif
 	&thermal_final_attr.attr,
 	&thermal_g0_attr.attr,
+	&thermal_batt_attr.attr,
 	&pause_dt_attr.attr,
-#endif
 	NULL,
 };
 
+static struct timer_list app_timer;
+static ssize_t
+app_timeout_show(struct kobject *kobj, struct kobj_attribute *attr,
+		char *buf)
+{
+	return sprintf(buf, "%d", app_timeout_expired);
+}
+static ssize_t
+app_timeout_store(struct kobject *kobj, struct kobj_attribute *attr,
+		const char *buf, size_t n)
+{
+	int val;
+	if (sscanf(buf, "%d", &val) > 0) {
+		if (val == 0) {
+			del_timer_sync(&app_timer);
+			app_timeout_expired = 0;
+			sysfs_notify(apps_kobj, NULL, "app_timeout");
+		}
+		else {
+			del_timer_sync(&app_timer);
+			app_timer.expires = jiffies + HZ * val;
+			app_timer.data = 0;
+			add_timer(&app_timer);
+		}
+		return n;
+	}
+	return -EINVAL;
+}
+power_attr(app_timeout);
+
 static struct attribute *apps_g[] = {
 	&activity_trigger_attr.attr,
+	&non_activity_trigger_attr.attr,
 	&media_mode_attr.attr,
+	&app_timeout_attr.attr,
+	NULL,
+};
+
+static struct attribute *battery_g[] = {
+	&charging_enabled_attr.attr,
 	NULL,
 };
 
@@ -300,27 +368,9 @@ static struct attribute_group apps_attr_group = {
 	.attrs = apps_g,
 };
 
-#ifdef CONFIG_HOTPLUG_CPU
-static int __cpuinit cpu_hotplug_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
-{
-	switch (action) {
-		
-		case CPU_ONLINE:
-		case CPU_ONLINE_FROZEN:
-			sysfs_notify(hotplug_kobj, NULL, "cpu_hotplug");
-			break;
-		case CPU_DEAD:
-		case CPU_DEAD_FROZEN:
-			break;
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block __refdata cpu_hotplug_notifier = {
-	.notifier_call = cpu_hotplug_callback,
-	.priority = -10, 
+static struct attribute_group battery_attr_group = {
+	.attrs = battery_g,
 };
-#endif
 
 static unsigned int slack_time_ms;
 static unsigned int step_time_ms;
@@ -369,11 +419,18 @@ static struct attribute_group adaptive_attr_group = {
 	.attrs = adaptive_attr,
 };
 
+static void app_timeout_handler(unsigned long data)
+{
+	app_timeout_expired = 1;
+	sysfs_notify(apps_kobj, NULL, "app_timeout");
+}
+
 static int __init pnpmgr_init(void)
 {
 	int ret;
 
-	init_waitqueue_head(&sysfs_state_wq);
+	init_timer(&app_timer);
+	app_timer.function = app_timeout_handler;
 
 	pnpmgr_kobj = kobject_create_and_add("pnpmgr", power_kobj);
 
@@ -386,9 +443,10 @@ static int __init pnpmgr_init(void)
 	hotplug_kobj = kobject_create_and_add("hotplug", pnpmgr_kobj);
 	thermal_kobj = kobject_create_and_add("thermal", pnpmgr_kobj);
 	apps_kobj = kobject_create_and_add("apps", pnpmgr_kobj);
+	battery_kobj = kobject_create_and_add("battery", pnpmgr_kobj);
 	adaptive_policy_kobj = kobject_create_and_add("adaptive_policy", power_kobj);
 
-	if (!cpufreq_kobj || !hotplug_kobj || !thermal_kobj || !apps_kobj || !adaptive_policy_kobj) {
+	if (!cpufreq_kobj || !hotplug_kobj || !thermal_kobj || !apps_kobj || !battery_kobj || !adaptive_policy_kobj) {
 		pr_err("%s: Can not allocate enough memory.\n", __func__);
 		return -ENOMEM;
 	}
@@ -397,16 +455,13 @@ static int __init pnpmgr_init(void)
 	ret |= sysfs_create_group(hotplug_kobj, &hotplug_attr_group);
 	ret |= sysfs_create_group(thermal_kobj, &thermal_attr_group);
 	ret |= sysfs_create_group(apps_kobj, &apps_attr_group);
+	ret |= sysfs_create_group(battery_kobj, &battery_attr_group);
 	ret |= sysfs_create_group(adaptive_policy_kobj, &adaptive_attr_group);
 
 	if (ret) {
 		pr_err("%s: sysfs_create_group failed\n", __func__);
 		return ret;
 	}
-
-#ifdef CONFIG_HOTPLUG_CPU
-	register_hotcpu_notifier(&cpu_hotplug_notifier);
-#endif
 
 	return 0;
 }
@@ -417,10 +472,8 @@ static void  __exit pnpmgr_exit(void)
 	sysfs_remove_group(hotplug_kobj, &hotplug_attr_group);
 	sysfs_remove_group(thermal_kobj, &thermal_attr_group);
 	sysfs_remove_group(apps_kobj, &apps_attr_group);
+	sysfs_remove_group(battery_kobj, &battery_attr_group);
 	sysfs_remove_group(adaptive_policy_kobj, &adaptive_attr_group);
-#ifdef CONFIG_HOTPLUG_CPU
-	unregister_hotcpu_notifier(&cpu_hotplug_notifier);
-#endif
 }
 
 module_init(pnpmgr_init);

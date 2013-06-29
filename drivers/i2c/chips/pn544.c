@@ -17,6 +17,7 @@
 #include <linux/spinlock.h>
 #include <linux/wakelock.h>
 #include <linux/pn544.h>
+#include <mach/board_htc.h>
 
 int is_debug = 0;
 
@@ -54,6 +55,8 @@ struct pn544_dev	{
 	unsigned int 		firm_gpio;
 	void (*gpio_init) (void);
 	unsigned int 		ven_enable;
+	int boot_mode;
+	bool                     isReadBlock;
 };
 
 struct pn544_dev *pn_info;
@@ -225,6 +228,7 @@ static ssize_t pn544_dev_read(struct file *filp, char __user *buf,
 		enable_irq(pni->client->irq);
 		D("%s: waiting read-event INT, because "
 			"irq_gpio = 0\n", __func__);
+		pni->isReadBlock = true;
 		ret = wait_event_interruptible(pni->read_wq,
 				gpio_get_value(pni->irq_gpio));
 
@@ -239,6 +243,7 @@ static ssize_t pn544_dev_read(struct file *filp, char __user *buf,
 
 	}
 
+	pni->isReadBlock = false;
     wake_lock_timeout(&pni ->io_wake_lock, IO_WAKE_LOCK_TIMEOUT);
 	
 	memset(read_buffer, 0, MAX_BUFFER_SIZE);
@@ -610,6 +615,8 @@ static int pn544_probe(struct i2c_client *client,
 	pni->client   = client;
 	pni->gpio_init = platform_data->gpio_init;
 	pni->ven_enable = !platform_data->ven_isinvert;
+	pni->boot_mode = board_mfg_mode();
+	pni->isReadBlock = false;
 
 	
 
@@ -676,8 +683,11 @@ static int pn544_probe(struct i2c_client *client,
 		goto err_create_pn_file;
 	}
 
-	I("%s: disable NFC by default\n", __func__);
-	pn544_Disable();
+	
+	if (pni->boot_mode != 5) {
+		I("%s: disable NFC by default (bootmode = %d)\n", __func__, pni->boot_mode);
+		pn544_Disable();
+	}
 
 	I("%s: Probe success!\n", __func__);
 	return 0;
@@ -728,11 +738,15 @@ static int pn544_suspend(struct i2c_client *client, pm_message_t state)
 {
 	struct pn544_dev *pni = pn_info;
 
-	if (pni->ven_value) {
+        I("%s: irq = %d, ven_gpio = %d, isEn = %d, isReadBlock =%d\n", __func__, \
+                gpio_get_value(pni->irq_gpio), gpio_get_value(pni->ven_gpio), pn544_isEn(), pni->isReadBlock);
+
+	if (pni->ven_value && pni->isReadBlock) {
 		pni->irq_enabled = true;
 		enable_irq(pni->client->irq);
 		irq_set_irq_wake(pni->client->irq, 1);
 	}
+
 	return 0;
 }
 
@@ -740,10 +754,14 @@ static int pn544_resume(struct i2c_client *client)
 {
 	struct pn544_dev *pni = pn_info;
 
-	if (pni->ven_value) {
+        I("%s: irq = %d, ven_gpio = %d, isEn = %d, isReadBlock =%d\n", __func__, \
+                gpio_get_value(pni->irq_gpio), gpio_get_value(pni->ven_gpio), pn544_isEn(), pni->isReadBlock);
+
+	if (pni->ven_value && pni->isReadBlock) {
 		pn544_disable_irq(pni);
 		irq_set_irq_wake(pni->client->irq, 0);
 	}
+
 	return 0;
 }
 #endif

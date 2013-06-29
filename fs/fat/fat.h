@@ -19,6 +19,8 @@
 #define FAT_ERRORS_PANIC	2      
 #define FAT_ERRORS_RO		3      
 
+#define FAT_CHARSET_ERROR	9999	
+
 struct fat_mount_options {
 	uid_t fs_uid;
 	gid_t fs_gid;

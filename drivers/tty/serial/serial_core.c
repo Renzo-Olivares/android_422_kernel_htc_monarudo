@@ -37,6 +37,26 @@
 #include <asm/irq.h>
 #include <asm/uaccess.h>
 
+#ifdef CONFIG_IMC_UART2DM_HANDSHAKE
+#include <mach/gpio.h>
+#include <mach/msm_serial_hs.h>
+
+#define GPIO_GSM_AP_XMM_WAKE	(91)
+#define GPIO_GSM_AP_XMM_STATUS	(97)
+#define GPIO_GSM_XMM_AP_STATUS	(12)
+
+extern u8 radio_state;
+extern u8 modem_fatal;
+
+#include <mach/board_htc.h>
+static int uart2_handshaking_mask = 0;
+#define MODULE_NAME "[GSM_RADIO]" 
+#define pr_uartdm_debug(x...) do {                             \
+                if (uart2_handshaking_mask) \
+                        printk(KERN_DEBUG MODULE_NAME " "x);            \
+        } while (0)
+#endif
+
 static DEFINE_MUTEX(port_mutex);
 
 static struct lock_class_key port_lock_key;
@@ -377,6 +397,9 @@ static int uart_write(struct tty_struct *tty,
 	struct circ_buf *circ;
 	unsigned long flags;
 	int c, ret = 0;
+#ifdef CONFIG_IMC_UART2DM_HANDSHAKE
+	u8 retries=0;
+#endif
 
 	if (!state) {
 		WARN_ON(1);
@@ -385,6 +408,33 @@ static int uart_write(struct tty_struct *tty,
 
 	port = state->uart_port;
 	circ = &state->xmit;
+
+#ifdef CONFIG_IMC_UART2DM_HANDSHAKE
+	
+	if (!strcmp(tty->name,"ttyHS1") && !modem_fatal) {
+		if (!radio_state) {
+			printk("[GSM_RADIO] %s %s radio is off \n",__func__, tty->name);
+			return -EINVAL;
+		}
+
+		imc_msm_hs_request_clock_on(port);
+
+		pr_uartdm_debug("%s %s PDA_INT_BB + \n",__func__, tty->name);
+		gpio_set_value(GPIO_GSM_AP_XMM_WAKE, 1);
+		mdelay(1);
+		while(!gpio_get_value(GPIO_GSM_XMM_AP_STATUS)){
+			gpio_set_value(GPIO_GSM_AP_XMM_STATUS, 0);
+			msleep(5);
+			gpio_set_value(GPIO_GSM_AP_XMM_STATUS, 1);
+			msleep(20);
+			if (retries>40){
+				printk("[GSM_RADIO] %s %s wait for BB_STATUS + timeout \n",__func__, tty->name);
+				return -EAGAIN;
+			}
+			retries++;
+		}
+	}
+#endif
 
 	if (!circ->buf)
 		return 0;
@@ -1799,6 +1849,17 @@ int uart_register_driver(struct uart_driver *drv)
 	}
 
 	retval = tty_register_driver(normal);
+
+#ifdef CONFIG_IMC_UART2DM_HANDSHAKE
+	if (!strcmp(drv->driver_name, "msm_serial_hs_imc"))
+	{
+		if (get_kernel_flag() & BIT(20)){
+			uart2_handshaking_mask = 1;
+			printk(KERN_DEBUG MODULE_NAME " %s enable uart2 handshaking debug msg\n", __func__);
+		}
+	}
+#endif
+
 	if (retval >= 0)
 		return retval;
 

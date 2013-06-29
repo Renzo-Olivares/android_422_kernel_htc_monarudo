@@ -37,6 +37,54 @@
 #endif 
 
 #include "fault.h"
+static inline unsigned int read_DFSR(void)
+{
+	unsigned int dfsr;
+	asm volatile ("mrc p15, 0, %0, c5, c0, 0" : "=r" (dfsr));
+	return dfsr;
+}
+
+static inline unsigned int read_TTBCR(void)
+{
+	unsigned int ttbcr;
+	asm volatile ("mrc p15, 0, %0, c2, c0, 2" : "=r" (ttbcr));
+	return ttbcr;
+}
+
+static inline unsigned int read_TTBR0(void)
+{
+	unsigned int ttbr0;
+	asm volatile ("mrc p15, 0, %0, c2, c0, 0" : "=r" (ttbr0));
+	return ttbr0;
+}
+
+static inline unsigned int read_TTBR1(void)
+{
+	unsigned int ttbr1;
+	asm volatile ("mrc p15, 0, %0, c2, c0, 1" : "=r" (ttbr1));
+	return ttbr1;
+}
+
+static inline unsigned int read_MAIR0(void)
+{
+	unsigned int mair0;
+	asm volatile ("mrc p15, 0, %0, c10, c2, 0" : "=r" (mair0));
+	return mair0;
+}
+
+static inline unsigned int read_MAIR1(void)
+{
+	unsigned int mair1;
+	asm volatile ("mrc p15, 0, %0, c10, c2, 1" : "=r" (mair1));
+	return mair1;
+}
+
+static inline unsigned int read_SCTLR(void)
+{
+	unsigned int sctlr;
+	asm volatile ("mrc p15, 0, %0, c1, c0, 0" : "=r" (sctlr));
+	return sctlr;
+}
 
 #ifdef CONFIG_MMU
 
@@ -125,6 +173,8 @@ void show_pte(struct mm_struct *mm, unsigned long addr)
 	} while(0);
 
 	printk("\n");
+	printk("DFSR=%08x, TTBCR=%08x, TTBR0=%08x, TTBR1=%08x\n", read_DFSR(), read_TTBCR(), read_TTBR0(), read_TTBR1());
+	printk("MAIR0=%08x, MAIR1=%08x, SCTLR=%08x\n", read_MAIR0(), read_MAIR1(), read_SCTLR());
 }
 #else					
 void show_pte(struct mm_struct *mm, unsigned long addr)
@@ -135,11 +185,19 @@ static void
 __do_kernel_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 		  struct pt_regs *regs)
 {
+	static int enable_logk_die = 1;
+
+	if (enable_logk_die) {
+		enable_logk_die = 0;
+		uncached_logk(LOGK_DIE, (void *)regs->ARM_pc);
+		uncached_logk(LOGK_DIE, (void *)regs->ARM_lr);
+		uncached_logk(LOGK_DIE, (void *)addr);
+	}
+
 	if (fixup_exception(regs))
 		return;
 
 	
-	uncached_logk(LOGK_DIE, (void *)addr);
 	msm_rtb_disable();
 
 	bust_spinlocks(1);

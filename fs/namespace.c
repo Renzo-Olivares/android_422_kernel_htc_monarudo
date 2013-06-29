@@ -1745,35 +1745,6 @@ long do_mount(char *dev_name, char *dir_name, char *type_page,
 	if (data_page)
 		((char *)data_page)[PAGE_SIZE - 1] = 0;
 
-#ifdef CONFIG_RESTRICT_ROOTFS_SLAVE
-	/* Check if this is an attempt to mark "/" as recursive-slave. */
-	if (strcmp(dir_name, "/") == 0 && flags == (MS_SLAVE | MS_REC)) {
-		static const char storage[] = "/storage";
-		static const char source[]  = "/mnt/shell/emulated";
-		long res;
-
-		/* Mark /storage as recursive-slave instead. */
-		if ((res = do_mount(NULL, (char *)storage, NULL, (MS_SLAVE | MS_REC), NULL)) == 0) {
-			/* Unfortunately bind mounts from outside /storage may retain the
-			 * recursive-shared property (bug?).  This means any additional
-			 * namespace-specific bind mounts (e.g., /storage/emulated/0/Android/obb)
-			 * will also appear, shared in all namespaces, at their respective source
-			 * paths (e.g., /mnt/shell/emulated/0/Android/obb), possibly leading to
-			 * hundreds of /proc/mounts-visible bind mounts.  As a workaround, mark
-			 * /mnt/shell/emulated also as recursive-slave so that subsequent bind
-			 * mounts are confined to their namespaces. */
-			if ((res = do_mount(NULL, (char *)source, NULL, (MS_SLAVE | MS_REC), NULL)) == 0)
-				/* Both paths successfully marked as slave, leave the rest of the
-				 * filesystem hierarchy alone. */
-				return 0;
-			else
-				pr_warn("Failed to mount %s as MS_SLAVE: %ld\n", source, res);
-		} else {
-			pr_warn("Failed to mount %s as MS_SLAVE: %ld\n", storage, res);
-		}
-		/* Fallback: Mark rootfs as recursive-slave as requested. */
-	}
-#endif
 	
 	retval = kern_path(dir_name, LOOKUP_FOLLOW, &path);
 	if (retval)
@@ -2145,7 +2116,9 @@ static void __init init_mount_tree(void)
 	set_fs_pwd(current->fs, &root);
 	set_fs_root(current->fs, &root);
 }
-
+#ifdef CONFIG_HTC_FD_MONITOR
+void create_fd_list_entry(struct kobject *kobj);
+#endif
 void __init mnt_init(void)
 {
 	unsigned u;
@@ -2175,6 +2148,10 @@ void __init mnt_init(void)
 	fs_kobj = kobject_create_and_add("fs", NULL);
 	if (!fs_kobj)
 		printk(KERN_WARNING "%s: kobj create error\n", __func__);
+#ifdef CONFIG_HTC_FD_MONITOR
+	else
+		create_fd_list_entry(fs_kobj);
+#endif
 	init_rootfs();
 	init_mount_tree();
 }

@@ -60,11 +60,13 @@ struct hdmi_msm_state_type {
 	struct timer_list hpd_state_timer;
 	struct completion ddc_sw_done;
 
+#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL_HDCP_SUPPORT
 	boolean hdcp_activating;
 	boolean reauth ;
 	struct work_struct hdcp_reauth_work, hdcp_work;
 	struct completion hdcp_success_done;
 	struct timer_list hdcp_timer;
+#endif 
 
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL_CEC_SUPPORT
 	boolean cec_enabled;
@@ -113,7 +115,7 @@ void hdmi_phy_reset(void);
 void hdmi_msm_reset_core(void);
 void hdmi_msm_init_phy(int video_format);
 void hdmi_msm_powerdown_phy(void);
-void hdmi_frame_ctrl_cfg(const struct msm_hdmi_mode_timing_info *timing);
+void hdmi_frame_ctrl_cfg(const struct hdmi_disp_mode_timing_type *timing);
 void hdmi_msm_phy_status_poll(void);
 #endif
 

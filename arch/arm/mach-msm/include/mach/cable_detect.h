@@ -10,10 +10,14 @@
 #define DOCK_STATE_USB_HOST				(1 << 4)
 #define DOCK_STATE_DMB						(1 << 5)
 #define DOCK_STATE_AUDIO_DOCK				(1 << 6)
+#define DOCK_STATE_THREE_POGO_DOCK		(1 << 7)
 
 #define DOCK_DET_DELAY		HZ/4
-
+#ifdef CONFIG_MACH_DUMMY
+#define ADC_RETRY 5
+#else
 #define ADC_RETRY 3
+#endif
 #define ADC_DELAY HZ/8
 
 #define PM8058ADC_15BIT(adc) ((adc * 2200) / 32767) 
@@ -83,6 +87,10 @@ struct cable_detect_platform_data {
 	bool dock_detect;
 	int dock_pin_gpio;
 #endif
+	int idpin_irq;
+	int carkit_only;
+	int (*detect_three_pogo_dock)(void);
+	int enable_vbus_usb_switch;
 };
 
 #ifdef CONFIG_FB_MSM_HDMI_MHL_SII9234
@@ -94,4 +102,5 @@ extern int cable_get_accessory_type(void);
 extern int cable_get_usb_id_level(void);
 extern void cable_set_uart_switch(int);
 extern irqreturn_t cable_detection_vbus_irq_handler(void);
+extern int check_three_pogo_dock(void);
 #endif

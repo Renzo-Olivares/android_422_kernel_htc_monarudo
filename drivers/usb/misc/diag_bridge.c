@@ -487,6 +487,13 @@ static int diag_bridge_resume(struct usb_interface *ifc)
 	return 0;
 }
 
+
+int diag_bridge_reset_resume(struct usb_interface *intf)
+{
+	pr_info("%s intf %p\n", __func__, intf);
+	return diag_bridge_resume(intf);
+}
+
 #define VALID_INTERFACE_NUM	0
 static const struct usb_device_id diag_bridge_ids[] = {
 	{ USB_DEVICE(0x5c6, 0x9001),
@@ -508,6 +515,7 @@ static struct usb_driver diag_bridge_driver = {
 	.disconnect =	diag_bridge_disconnect,
 	.suspend =	diag_bridge_suspend,
 	.resume =	diag_bridge_resume,
+	.reset_resume =	diag_bridge_reset_resume,
 	.id_table =	diag_bridge_ids,
 	.supports_autosuspend = 1,
 };

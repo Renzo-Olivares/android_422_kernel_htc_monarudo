@@ -118,7 +118,11 @@ MODULE_DEVICE_TABLE(usb, id_table);
 #define EFS_SYNC_IFC_NUM	2
 #define DUN_IFC_NUM 3
 static bool usb_diag_enable = false;
-
+int usb_serial_reset_resume(struct usb_interface *intf)
+{
+	pr_info("%s intf %p\n", __func__, intf);
+	return usb_serial_resume(intf);
+}
 static struct usb_driver qcdriver = {
 	.name			= "qcserial",
 	.probe			= usb_serial_probe,
@@ -126,6 +130,7 @@ static struct usb_driver qcdriver = {
 	.id_table		= id_table,
 	.suspend		= usb_serial_suspend,
 	.resume			= usb_serial_resume,
+	.reset_resume = usb_serial_reset_resume,
 	.supports_autosuspend	= true,
 };
 

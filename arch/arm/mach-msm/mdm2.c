@@ -38,6 +38,7 @@
 #include <mach/subsystem_restart.h>
 #include <linux/msm_charm.h>
 #include <mach/msm_watchdog.h>
+#include <linux/async.h>
 #include "devices.h"
 #include "clock.h"
 #include "mdm_private.h"
@@ -91,6 +92,7 @@ static DEFINE_MUTEX(hsic_status_lock);
 
 static void mdm_peripheral_connect(struct mdm_modem_drv *mdm_drv)
 {
+	pr_info("%s+\n", __func__);
 	mutex_lock(&hsic_status_lock);
 	if (hsic_peripheral_status)
 		goto out;
@@ -99,10 +101,12 @@ static void mdm_peripheral_connect(struct mdm_modem_drv *mdm_drv)
 	hsic_peripheral_status = 1;
 out:
 	mutex_unlock(&hsic_status_lock);
+	pr_info("%s-\n", __func__);
 }
 
 static void mdm_peripheral_disconnect(struct mdm_modem_drv *mdm_drv)
 {
+	pr_info("%s+\n", __func__);
 	mutex_lock(&hsic_status_lock);
 	if (!hsic_peripheral_status)
 		goto out;
@@ -111,6 +115,7 @@ static void mdm_peripheral_disconnect(struct mdm_modem_drv *mdm_drv)
 	hsic_peripheral_status = 0;
 out:
 	mutex_unlock(&hsic_status_lock);
+	pr_info("%s-\n", __func__);
 }
 
 static void power_on_mdm(struct mdm_modem_drv *mdm_drv)
@@ -167,6 +172,14 @@ static void power_on_mdm(struct mdm_modem_drv *mdm_drv)
 
 static void power_down_mdm(struct mdm_modem_drv *mdm_drv)
 {
+	
+	if (mdm_drv->ap2mdm_errfatal_gpio > 0)
+		gpio_direction_output(mdm_drv->ap2mdm_errfatal_gpio, 0);
+	if (mdm_drv->ap2mdm_status_gpio > 0)
+		gpio_direction_output(mdm_drv->ap2mdm_status_gpio, 0);
+	if (mdm_drv->ap2mdm_wakeup_gpio > 0)
+		gpio_direction_output(mdm_drv->ap2mdm_wakeup_gpio, 0);
+	
 
 	if (mdm_drv->ap2mdm_kpdpwr_n_gpio > 0)
 		gpio_direction_output(mdm_drv->ap2mdm_kpdpwr_n_gpio, 0);
@@ -211,6 +224,7 @@ static void mdm_status_changed(struct mdm_modem_drv *mdm_drv, int value)
 		mdm_peripheral_disconnect(mdm_drv);
 		mdm_peripheral_connect(mdm_drv);
 		gpio_direction_output(mdm_drv->ap2mdm_wakeup_gpio, 1);
+		mdm_drv->mdm_hsic_reconnectd = 1;
 	}
 }
 
@@ -246,9 +260,15 @@ static struct platform_driver mdm_modem_driver = {
 	},
 };
 
+static void __init mdm_modem_init_async(void *unused, async_cookie_t cookie)
+{
+	platform_driver_probe(&mdm_modem_driver, mdm_modem_probe);
+}
+
 static int __init mdm_modem_init(void)
 {
-	return platform_driver_probe(&mdm_modem_driver, mdm_modem_probe);
+	async_schedule(mdm_modem_init_async, NULL);
+	return 0;
 }
 
 static void __exit mdm_modem_exit(void)

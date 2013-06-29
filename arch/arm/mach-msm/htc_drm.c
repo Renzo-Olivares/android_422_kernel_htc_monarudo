@@ -52,21 +52,28 @@
 
 #define HTCDRM_IOCTL_WIDEVINE	0x2563
 #define HTCDRM_IOCTL_DISCRETIX	0x2596
+#define HTCDRM_IOCTL_CPRM   	0x2564
 
 #define DEVICE_ID_LEN			32
 #define WIDEVINE_KEYBOX_LEN		128
+#define CPRM_KEY_LEN		    188
 
 #define HTC_DRM_DEBUG	0
+#define TAG "[SEC] "
 #undef PDEBUG
 #if HTC_DRM_DEBUG
-#define PDEBUG(fmt, args...) printk(KERN_INFO "[K] %s(%i, %s): " fmt "\n", \
+#define PDEBUG(fmt, args...) printk(KERN_DEBUG TAG "[D] %s(%i, %s): " fmt "\n", \
 		__func__, current->pid, current->comm, ## args)
 #else
 #define PDEBUG(fmt, args...) do {} while (0)
 #endif
 
 #undef PERR
-#define PERR(fmt, args...) printk(KERN_ERR "[K] %s(%i, %s): " fmt "\n", \
+#define PERR(fmt, args...) printk(KERN_ERR TAG "[K] %s(%i, %s): " fmt "\n", \
+		__func__, current->pid, current->comm, ## args)
+
+#undef PINFO
+#define PINFO(fmt, args...) printk(KERN_INFO TAG "[I] %s(%i, %s): " fmt "\n", \
 		__func__, current->pid, current->comm, ## args)
 
 #if !defined(CONFIG_ARCH_MSM7X30) && !defined(CONFIG_ARCH_MSM7X27A)
@@ -173,6 +180,8 @@ static unsigned char *discretix_tz_heap;
 #define DISCRETIX_HEAP_SIZE	0
 #endif
 
+#define DX_PRE_ALLOC_BUFFER 1
+
 #endif
 
 #if defined(CONFIG_ARCH_MSM7X30) || defined(CONFIG_ARCH_MSM7X27A)
@@ -261,7 +270,7 @@ static int oem_rapi_client_cb(struct msm_rpc_client *client,
 	}
 	rc = xdr_send_msg(xdr);
 	if (rc)
-		pr_err("%s: sending reply failed: %d\n", __func__, rc);
+		PERR("sending reply failed: %d", rc);
 
 	kfree(arg.input);
 	kfree(ret.out_len);
@@ -334,8 +343,7 @@ int oem_rapi_client_close(void)
 	if (open_count > 0) {
 		if (--open_count == 0) {
 			msm_rpc_unregister_client(rpc_client);
-			pr_info("%s: disconnected from remote oem rapi server\n",
-				__func__);
+			PINFO("Disconnected from remote oem rapi server");
 		}
 	}
 	mutex_unlock(&oem_rapi_client_lock);
@@ -373,22 +381,22 @@ static ssize_t htc_keybox_read(struct htc_keybox_dev *dev, char *buf, size_t siz
 	memset(dev->keybox_buf, 56, OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE);
 	memset(nullbuf, 0, OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE);
 
-	printk(KERN_INFO "[K] htc_keybox_read start:\n");
+	PDEBUG("start:");
 	if (p >= OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE)
 		return count ? -ENXIO : 0;
 
-	printk(KERN_INFO "[K] htc_keybox_read oem_rapi_client_streaming_function start:\n");
+	PDEBUG("oem_rapi_client_streaming_function start:");
 	if (count == 0xFF) {
 		arg.event = OEM_RAPI_CLIENT_EVENT_WIDEVINE_READ_DEVICE_ID;
 		memset(dev->keybox_buf, 57, OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE);
-		printk(KERN_INFO "[K] htc_keybox_read: OEM_RAPI_CLIENT_EVENT_WIDEVINE_READ_DEVICE_ID\n");
+		PINFO("Get device id via oem_rapi");
 	} else if (count > OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE - p) {
 		count = OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE - p;
 		arg.event = OEM_RAPI_CLIENT_EVENT_WIDEVINE_READ_KEYBOX;
-		printk(KERN_INFO "[K] htc_keybox_read: OEM_RAPI_CLIENT_EVENT_WIDEVINE_READ_KEYBOX\n");
+		PINFO("Get keybox via oem_rapi");
 	} else {
 		arg.event = OEM_RAPI_CLIENT_EVENT_WIDEVINE_READ_KEYBOX;
-		printk(KERN_INFO "[K] htc_keybox_read: OEM_RAPI_CLIENT_EVENT_WIDEVINE_READ_KEYBOX\n");
+		PINFO("Get keybox via oem_rapi");
 	}
 	arg.cb_func = NULL;
 	arg.handle = (void *)0;
@@ -402,10 +410,10 @@ static ssize_t htc_keybox_read(struct htc_keybox_dev *dev, char *buf, size_t siz
 
 	ret_rpc = oem_rapi_client_streaming_function(rpc_client, &arg, &ret);
 	if (ret_rpc) {
-		printk(KERN_INFO "[K] %s: Get data from modem failed: %d\n", __func__, ret_rpc);
+		PERR("Get data from modem failed: %d", ret_rpc);
 		return -EFAULT;
 	}
-	printk(KERN_INFO "[K] %s: Data obtained from modem %d, ", __func__, *(ret.out_len));
+	PDEBUG("Data obtained from modem %d, ", *(ret.out_len));
 	memcpy(dev->keybox_buf, ret.output, *(ret.out_len));
 	kfree(ret.out_len);
 	kfree(ret.output);
@@ -420,12 +428,13 @@ static ssize_t htc_keybox_write(struct htc_keybox_dev *dev, const char *buf, siz
 	struct oem_rapi_client_streaming_func_arg arg;
 	struct oem_rapi_client_streaming_func_ret ret;
 
-	printk(KERN_INFO "[K] htc_keybox_write start:\n");
+	PDEBUG("start:");
 	if (p >= OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE)
 		return count ? -ENXIO : 0;
 	if (count > OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE - p)
 		count = OEM_RAPI_CLIENT_MAX_OUT_BUFF_SIZE - p;
-	printk(KERN_INFO "[K] htc_keybox_write oem_rapi_client_streaming_function start:\n");
+	PDEBUG("oem_rapi_client_streaming_function start:");
+
 	arg.event = OEM_RAPI_CLIENT_EVENT_WIDEVINE_WRITE_KEYBOX;
 	arg.cb_func = NULL;
 	arg.handle = (void *)0;
@@ -439,10 +448,10 @@ static ssize_t htc_keybox_write(struct htc_keybox_dev *dev, const char *buf, siz
 
 	ret_rpc = oem_rapi_client_streaming_function(rpc_client, &arg, &ret);
 	if (ret_rpc) {
-		printk(KERN_INFO "[K] %s: Send data from modem failed: %d\n", __func__, ret_rpc);
+		PERR("Send data from modem failed: %d", ret_rpc);
 		return -EFAULT;
 	}
-	printk(KERN_INFO "[K] %s: Data sent to modem %s\n", __func__, dev->keybox_buf);
+	PDEBUG("Data sent to modem %s", dev->keybox_buf);
 
 	return 0;
 }
@@ -464,6 +473,47 @@ static DEFINE_MUTEX(dx_lock);
 
 void scm_inv_range(unsigned long start, unsigned long end);
 
+#if defined(DX_PRE_ALLOC_BUFFER)
+
+#define DX_PRE_ALLOC_BUFFER_SIZE ((512 + 64) * 1024)
+
+static unsigned char *dx_memory_pool_ptr;
+static unsigned char *dx_memory_pool_phy;
+static unsigned int dx_mem_offset;
+static unsigned int max_ofs;
+
+static void reset_dx_memory_pool(void)
+{
+	if (max_ofs < dx_mem_offset)
+		max_ofs = dx_mem_offset;
+	dx_mem_offset = 0;
+}
+
+static unsigned char *dx_kzalloc(int size)
+{
+	unsigned char *m = NULL;
+	unsigned int mask;
+
+	if (dx_memory_pool_ptr == NULL)
+		return NULL;
+
+	if (dx_mem_offset + size <= DX_PRE_ALLOC_BUFFER_SIZE) {
+		m = dx_memory_pool_ptr + dx_mem_offset;
+		memset(m, 0, size);
+		dx_mem_offset += size;
+		mask = 4096 - 1;
+		dx_mem_offset = (dx_mem_offset + mask) & ~mask;
+	}
+	return m;
+}
+
+static unsigned char *dx_virt_to_phys(unsigned char *virt)
+{
+	return (dx_memory_pool_phy + (virt - dx_memory_pool_ptr));
+}
+#endif
+
+
 #if 1
 static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 {
@@ -471,11 +521,20 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 	int ret = 0, i;
 	unsigned char *ptr, *data, *image, *image_u;
 	unsigned char *kbuf[4], *ubuf[4];
+	#if defined(DX_PRE_ALLOC_BUFFER)
+	unsigned int *sessionContext;
+	#else
 	unsigned int sessionContext;
+	#endif
 	unsigned long start, end;
 
 	image_u = NULL;
 	image = NULL;
+
+	#if defined(DX_PRE_ALLOC_BUFFER)
+	reset_dx_memory_pool();
+	sessionContext = (unsigned int *)dx_kzalloc(sizeof(int));
+	#endif
 
 	if (copy_from_user(&hdix, (void __user *)arg, sizeof(hdix))) {
 		PERR("copy_from_user error (msg)");
@@ -529,24 +588,34 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 		}
 		break;
 	default:
-		PERR("func: %d error\n", hdix.func);
+		PERR("func: %d error", hdix.func);
 		return -EFAULT;
 	}
 
 	if (hdix.buf_len != 0) {
+		#if defined(DX_PRE_ALLOC_BUFFER)
+		ptr = dx_kzalloc(hdix.buf_len);
+		#else
 		ptr = kzalloc(hdix.buf_len, GFP_KERNEL);
+		#endif
 		if (ptr == NULL) {
 			PERR("allocate the space for data failed (%d)", hdix.buf_len);
 			return -EFAULT;
 		}
 		if (copy_from_user(ptr, (void __user *)hdix.buf, hdix.buf_len)) {
 			PERR("copy_from_user error (data)");
+			#if !defined(DX_PRE_ALLOC_BUFFER)
 			kfree(ptr);
+			#endif
 			return -EFAULT;
 		}
 
 		data = hdix.buf;
+		#if defined(DX_PRE_ALLOC_BUFFER)
+		hdix.buf = (unsigned char *)dx_virt_to_phys(ptr);
+		#else
 		hdix.buf = (unsigned char *)virt_to_phys(ptr);
+		#endif
 	} else {
 		data = NULL;
 		ptr = NULL;
@@ -579,17 +648,27 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 			struct CMD_SECURE_STORAGE *s;
 
 			s = (struct CMD_SECURE_STORAGE *)ptr;
+			#if defined(DX_PRE_ALLOC_BUFFER)
+			image = dx_kzalloc(s->image_size);
+			#else
 			image = kzalloc(s->image_size, GFP_KERNEL);
+			#endif
 			if (image == NULL) {
 				PERR("allocate the space for fat8 image failed");
 				return -1;
 			}
 			if (copy_from_user(image, (void __user *)s->image_base, s->image_size)) {
 				PERR("copy_from_user error (image)");
+				#if !defined(DX_PRE_ALLOC_BUFFER)
 				kfree(image);
+				#endif
 				return -EFAULT;
 			}
+			#if defined(DX_PRE_ALLOC_BUFFER)
+			s->image_base = (unsigned char *)dx_virt_to_phys(image);
+			#else
 			s->image_base = (unsigned char *)virt_to_phys(image);
+			#endif
 		}
 		break;
 	case TEE_FUNC_SECURE_STORAGE_SYNC:
@@ -597,13 +676,21 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 			struct CMD_SECURE_STORAGE *s;
 
 			s = (struct CMD_SECURE_STORAGE *)ptr;
+			#if defined(DX_PRE_ALLOC_BUFFER)
+			image = dx_kzalloc(s->image_size);
+			#else
 			image = kzalloc(s->image_size, GFP_KERNEL);
+			#endif
 			if (image == NULL) {
 				PERR("allocate the space for fat8 image failed");
 				return -1;
 			}
 			image_u = s->image_base;
+			#if defined(DX_PRE_ALLOC_BUFFER)
+			s->image_base = (unsigned char *)dx_virt_to_phys(image);
+			#else
 			s->image_base = (unsigned char *)virt_to_phys(image);
+			#endif
 		}
 		break;
 	case TEE_FUNC_TA_OpenSession:
@@ -611,8 +698,13 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 			struct CMD_TA_OpenSession *s;
 
 			s = (struct CMD_TA_OpenSession *)ptr;
+			#if defined(DX_PRE_ALLOC_BUFFER)
+			*sessionContext = 0;
+			s->sessionContext = (void *)dx_virt_to_phys((char *)sessionContext);
+			#else
 			sessionContext = 0;
 			s->sessionContext = (void *)virt_to_phys(&sessionContext);
+			#endif
 			for (i = 0; i < 4; i++) {
 				int ptype;
 
@@ -623,13 +715,21 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 				case TEE_PARAM_TYPE_MEMREF_OUTPUT:
 				case TEE_PARAM_TYPE_MEMREF_INOUT:
 					if (s->params[i].memref.size != 0) {
+						#if defined(DX_PRE_ALLOC_BUFFER)
+						kbuf[i] = dx_kzalloc(s->params[i].memref.size);
+						#else
 						kbuf[i] = kzalloc(s->params[i].memref.size, GFP_KERNEL);
+						#endif
 						if (kbuf[i] == NULL) {
 							PERR("allocate the space for buffer failed (%d)", s->params[i].memref.size);
 							ret = -EFAULT;
 							goto discretix_error_exit;
 						}
+						#if defined(DX_PRE_ALLOC_BUFFER)
+						s->params[i].memref.buffer = (unsigned char *)dx_virt_to_phys(kbuf[i]);
+						#else
 						s->params[i].memref.buffer = (unsigned char *)virt_to_phys(kbuf[i]);
+						#endif
 					} else
 						kbuf[i] = NULL;
 					if ((ptype == TEE_PARAM_TYPE_MEMREF_INPUT) ||
@@ -669,13 +769,21 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 				case TEE_PARAM_TYPE_MEMREF_OUTPUT:
 				case TEE_PARAM_TYPE_MEMREF_INOUT:
 					if (s->params[i].memref.size != 0) {
+						#if defined(DX_PRE_ALLOC_BUFFER)
+						kbuf[i] = dx_kzalloc(s->params[i].memref.size);
+						#else
 						kbuf[i] = kzalloc(s->params[i].memref.size, GFP_KERNEL);
+						#endif
 						if (kbuf[i] == NULL) {
 							PERR("allocate the space for buffer failed (%d)", s->params[i].memref.size);
 							ret = -EFAULT;
 							goto discretix_error_exit;
 						}
+						#if defined(DX_PRE_ALLOC_BUFFER)
+						s->params[i].memref.buffer = (unsigned char *)dx_virt_to_phys(kbuf[i]);
+						#else
 						s->params[i].memref.buffer = (unsigned char *)virt_to_phys(kbuf[i]);
+						#endif
 					} else
 						kbuf[i] = NULL;
 					if ((ptype == TEE_PARAM_TYPE_MEMREF_INPUT) ||
@@ -723,10 +831,18 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 
 			s = (struct CMD_TA_OpenSession *)ptr;
 			
+			#if defined(DX_PRE_ALLOC_BUFFER)
+			start = (unsigned long)sessionContext;
+			#else
 			start = (unsigned long)&sessionContext;
+			#endif
 			end = start + 4;
 			scm_inv_range(start, end);
+			#if defined(DX_PRE_ALLOC_BUFFER)
+			s->sessionContext = (void *)(*sessionContext);
+			#else
 			s->sessionContext = (void *)sessionContext;
+			#endif
 			for (i = 0; i < 4; i++) {
 				int ptype;
 
@@ -788,7 +904,9 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 
 			s = (struct CMD_SECURE_STORAGE *)ptr;
 			s->image_base = image_u;
+			#if !defined(DX_PRE_ALLOC_BUFFER)
 			kfree(image);
+			#endif
 			secure_storage_init = 1;
 		}
 		break;
@@ -804,7 +922,9 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 			scm_inv_range(start, end);
 			if (copy_to_user((void __user *)image_u, image, s->image_size))
 				 PERR("copy_to_user error (image)");
+			#if !defined(DX_PRE_ALLOC_BUFFER)
 			kfree(image);
+			#endif
 			PDEBUG("sync htc ssd");
 		}
 		break;
@@ -826,10 +946,12 @@ static long htcdrm_discretix_cmd(unsigned int command, unsigned long arg)
 	}
 
 discretix_error_exit:
+	#if !defined(DX_PRE_ALLOC_BUFFER)
 	for (i = 0; i < 4; i++)
 		if (kbuf[i] != NULL)
 			kfree(kbuf[i]);
 	kfree(ptr);
+	#endif
 
 	return ret;
 }
@@ -890,8 +1012,9 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 	htc_drm_msg_s hmsg;
 	int ret = 0;
 	unsigned char *ptr;
+	static unsigned char htc_cprmkey[CPRM_KEY_LEN]={0};
 
-	PDEBUG("command = %x\n", command);
+	PDEBUG("command = %x", command);
 	switch (command) {
 	case HTCDRM_IOCTL_WIDEVINE:
 		if (copy_from_user(&hmsg, (void __user *)arg, sizeof(hmsg))) {
@@ -905,7 +1028,7 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 			return -EFAULT;
 		}
 #endif 
-		PDEBUG("func = %x\n", hmsg.func);
+		PDEBUG("func = %x", hmsg.func);
 		switch (hmsg.func) {
 		case HTC_OEMCRYPTO_STORE_KEYBOX:
 			if ((hmsg.req_buf == NULL) || (hmsg.req_len != WIDEVINE_KEYBOX_LEN)) {
@@ -927,7 +1050,7 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 					htc_keybox);
 #endif	
 			if (ret)
-				PERR("provision keybox failed (%d)\n", ret);
+				PERR("provision keybox failed (%d)", ret);
 			UP(&keybox_dev->sem);
 			break;
 		case HTC_OEMCRYPTO_GET_KEYBOX:
@@ -946,7 +1069,7 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 					htc_keybox);
 #endif	
 			if (ret)
-				PERR("get keybox failed (%d)\n", ret);
+				PERR("get keybox failed (%d)", ret);
 			else {
 				if (copy_to_user((void __user *)hmsg.resp_buf, htc_keybox + hmsg.offset, hmsg.resp_len)) {
 					PERR("copy_to_user error (keybox)");
@@ -972,7 +1095,7 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 					htc_device_id);
 #endif	
 			if (ret)
-				PERR("get device ID failed (%d)\n", ret);
+				PERR("get device ID failed (%d)", ret);
 			else {
 				if (copy_to_user((void __user *)hmsg.resp_buf, htc_device_id, DEVICE_ID_LEN)) {
 					PERR("copy_to_user error (device ID)");
@@ -990,18 +1113,18 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 			}
 			ptr = kzalloc(hmsg.resp_len, GFP_KERNEL);
 			if (ptr == NULL) {
-				PERR("allocate the space for random data failed\n");
+				PERR("allocate the space for random data failed");
 				UP(&keybox_dev->sem);
 				return -1;
 			}
 #if defined(CONFIG_ARCH_MSM7X30) || defined(CONFIG_ARCH_MSM7X27A)
 			get_random_bytes(ptr, hmsg.resp_len);
-			printk(KERN_INFO "[K] %s: Data get from random entropy ", __func__);
+			PINFO("Data get from random entropy");
 #else
 			get_random_bytes(ptr, hmsg.resp_len);
 #endif	
 			if (ret)
-				PERR("get random data failed (%d)\n", ret);
+				PERR("get random data failed (%d)", ret);
 			else {
 				if (copy_to_user((void __user *)hmsg.resp_buf, ptr, hmsg.resp_len)) {
 					PERR("copy_to_user error (random data)");
@@ -1022,7 +1145,7 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 			return ret;
 		default:
 			UP(&keybox_dev->sem);
-			PERR("func error\n");
+			PERR("func error");
 			return -EFAULT;
 		}
 		break;
@@ -1033,8 +1156,31 @@ static long htcdrm_ioctl(struct file *file, unsigned int command, unsigned long 
 		mutex_unlock(&dx_lock);
 		break;
 #endif
+	case HTCDRM_IOCTL_CPRM:
+        if (copy_from_user(&hmsg, (void __user *)arg, sizeof(hmsg))) {
+            PERR("copy_from_user error (msg)");
+            return -EFAULT;
+        }
+
+        if ((hmsg.resp_buf == NULL) || !hmsg.resp_len ) {
+            PERR("invalid arguments");
+            return -EFAULT;
+        }
+
+        ret = secure_access_item(0, ITEM_CPRMKEY_DATA, CPRM_KEY_LEN, htc_cprmkey);
+
+        if (ret)
+            PERR("get cprmkey failed (%d)", ret);
+        else {
+            if (copy_to_user( (void __user *)hmsg.resp_buf , htc_cprmkey , hmsg.resp_len)) {
+                PERR("copy_to_user error (cprmkey)");
+                return -EFAULT;
+            }
+        }
+        break;
+
 	default:
-		PERR("command error\n");
+		PERR("command error");
 		return -EFAULT;
 	}
 	return ret;
@@ -1093,12 +1239,12 @@ static int __init htcdrm_init(void)
 
 	htc_device_id = kzalloc(DEVICE_ID_LEN, GFP_KERNEL);
 	if (htc_device_id == NULL) {
-		PERR("allocate the space for device ID failed\n");
+		PERR("allocate the space for device ID failed");
 		return -1;
 	}
 	htc_keybox = kzalloc(WIDEVINE_KEYBOX_LEN, GFP_KERNEL);
 	if (htc_keybox == NULL) {
-		PERR("allocate the space for keybox failed\n");
+		PERR("allocate the space for keybox failed");
 		kfree(htc_device_id);
 		return -1;
 	}
@@ -1106,7 +1252,7 @@ static int __init htcdrm_init(void)
 #if !defined(CONFIG_ARCH_MSM7X30) && !defined(CONFIG_ARCH_MSM7X27A)
 	discretix_smem_ptr = kzalloc(discretix_smem_size + (2 * PAGE_SIZE), GFP_KERNEL);
 	if (discretix_smem_ptr == NULL) {
-		PERR("allocate the space for DX smem failed\n");
+		PERR("allocate the space for DX smem failed");
 		kfree(htc_device_id);
 		return -1;
 	}
@@ -1118,15 +1264,26 @@ static int __init htcdrm_init(void)
 #if DX_ALLOC_TZ_HEAP
 	discretix_tz_heap = kzalloc(DISCRETIX_HEAP_SIZE, GFP_KERNEL);
 	if (discretix_tz_heap == NULL) {
-		PERR("allocate the space for discretix heap failed\n");
+		PERR("allocate the space for discretix heap failed");
 		kfree(htc_device_id);
 		return -1;
 	}
 #endif
+
+#if defined(DX_PRE_ALLOC_BUFFER)
+	dx_memory_pool_ptr = (unsigned char *)kzalloc(DX_PRE_ALLOC_BUFFER_SIZE, GFP_KERNEL);
+	if (dx_memory_pool_ptr == NULL) {
+		PERR("allocate dx_memory_pool failed");
+		kfree(htc_device_id);
+		return -1;
+	}
+	dx_memory_pool_phy = (unsigned char *)virt_to_phys(dx_memory_pool_ptr);
+#endif
+
 #endif
 	ret = register_chrdev(0, DEVICE_NAME, &htcdrm_fops);
 	if (ret < 0) {
-		PERR("register module fail\n");
+		PERR("register module fail");
 		kfree(htc_device_id);
 		kfree(htc_keybox);
 		return ret;
@@ -1139,13 +1296,13 @@ static int __init htcdrm_init(void)
 #if defined(CONFIG_ARCH_MSM7X30) || defined(CONFIG_ARCH_MSM7X27A)
 	keybox_dev = kzalloc(sizeof(htc_keybox_dev), GFP_KERNEL);
 	if (keybox_dev == NULL) {
-		PERR("allocate space for keybox_dev failed\n");
+		PERR("allocate space for keybox_dev failed");
 		kfree(keybox_dev);
 		return -1;
 	}
 	sema_init(&keybox_dev->sem, 1);
 #endif
-	PDEBUG("register module ok\n");
+	PDEBUG("register module ok");
 	return 0;
 }
 
@@ -1169,8 +1326,11 @@ static void  __exit htcdrm_exit(void)
 	kfree(discretix_smem_ptr);
 #endif
 
-	PDEBUG("un-registered module ok\n");
+	PDEBUG("un-registered module ok");
 }
+
+module_param(max_ofs, int, S_IRUGO);
+MODULE_PARM_DESC(max_ofs, "htcdrm dx max_ofs");
 
 module_init(htcdrm_init);
 module_exit(htcdrm_exit);

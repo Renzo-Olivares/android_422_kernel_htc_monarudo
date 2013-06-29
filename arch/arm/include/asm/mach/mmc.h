@@ -75,6 +75,7 @@ struct msm_mmc_pad_drv {
 
 struct msm_mmc_pad_drv_data {
 	struct msm_mmc_pad_drv *on;
+	struct msm_mmc_pad_drv *on_SDR104;
 	struct msm_mmc_pad_drv *off;
 	u8 size;
 };
@@ -102,6 +103,7 @@ struct mmc_platform_data {
 	int built_in;				
 	int card_present;			
 	u32 (*translate_vdd)(struct device *, unsigned int);
+	int (*config_sdgpio)(bool);
 	unsigned int (*status)(struct device *);
 	struct embedded_sdio_data *embedded_sdio;
 	int (*register_status_notify)(void (*callback)(int card_present, void *dev_id), void *dev_id);
@@ -138,6 +140,7 @@ struct mmc_platform_data {
 	unsigned int *sup_clk_table;
 	unsigned char sup_clk_cnt;
 	struct msm_mmc_pin_data *pin_data;
+	struct msm_mmc_pin_data *pin_data_SDR104;
 	bool disable_bam;
 	bool disable_runtime_pm;
 	bool disable_cmd23;

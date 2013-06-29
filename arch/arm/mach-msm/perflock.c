@@ -66,7 +66,7 @@ static struct kernel_param_ops param_ops_str = {
 module_param_cb(debug_mask, &param_ops_str, &debug_mask, S_IWUSR | S_IRUGO);
 
 #ifdef CONFIG_HTC_PNPMGR
-static int legacy_mode = 1;
+static int legacy_mode = 0;
 module_param_cb(legacy_mode, &param_ops_str, &legacy_mode, S_IWUSR | S_IRUGO);
 extern struct kobject *cpufreq_kobj;
 #endif
@@ -352,13 +352,7 @@ void htc_print_active_perf_locks(void)
 	spin_unlock_irqrestore(&list_lock, irqflags);
 }
 
-void perf_lock_init_v2(struct perf_lock *lock,
-			unsigned int level, const char *name)
-{
-	lock->type = TYPE_CPUFREQ_CEILING;
-	perf_lock_init(lock, level, name);
-}
-void perf_lock_init(struct perf_lock *lock,
+void perf_lock_init(struct perf_lock *lock, unsigned int type,
 			unsigned int level, const char *name)
 {
 	unsigned long irqflags = 0;
@@ -377,6 +371,7 @@ void perf_lock_init(struct perf_lock *lock,
 	lock->name = name;
 	lock->flags = PERF_LOCK_INITIALIZED;
 	lock->level = level;
+	lock->type = type;
 
 	INIT_LIST_HEAD(&lock->link);
 	spin_lock_irqsave(&list_lock, irqflags);
@@ -388,10 +383,20 @@ void perf_lock_init(struct perf_lock *lock,
 }
 EXPORT_SYMBOL(perf_lock_init);
 
+#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND
+extern bool is_governor_ondemand(void);
+extern bool is_ondemand_locked(void);
+#endif
 static void do_set_rate_fn(struct work_struct *work)
 {
 	struct cpufreq_freqs freqs;
 	int ret = 0;
+#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND
+	if(is_governor_ondemand() && is_ondemand_locked()) {
+		pr_info("[K] perflock ignore setrate, ondemand governor locked\n");
+		return;
+	}
+#endif
 	freqs.new = perflock_override(NULL, 0);
 	freqs.cpu = smp_processor_id();
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
@@ -628,9 +633,11 @@ static void perf_acpu_table_fixup(void)
 			perf_acpu_table[i] = policy_min * 1000;
 	}
 
+#ifdef PERFLOCK_FIX_UP
 	if (table_size >= 1)
 		if (perf_acpu_table[table_size - 1] < policy_max * 1000)
 			perf_acpu_table[table_size - 1] = policy_max * 1000;
+#endif
 }
 
 static void cpufreq_ceiling_acpu_table_fixup(void)
@@ -693,7 +700,7 @@ static void perflock_floor_init(struct perflock_data *pdata)
 	pr_info("perflock floor init done\n");
 #ifdef CONFIG_PERFLOCK_BOOT_LOCK
 	
-	perf_lock_init(&boot_perf_lock, PERF_LOCK_HIGHEST, "boot-time");
+	perf_lock_init(&boot_perf_lock, TYPE_PERF_LOCK, PERF_LOCK_HIGHEST, "boot-time");
 	perf_lock(&boot_perf_lock);
 	schedule_delayed_work(&work_expire_boot_lock, BOOT_LOCK_TIMEOUT);
 	pr_info("Acquire 'boot-time' perf_lock\n");

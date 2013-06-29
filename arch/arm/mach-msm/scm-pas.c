@@ -131,6 +131,18 @@ static void scm_pas_disable_bw(void)
 	mutex_unlock(&scm_pas_bw_mutex);
 }
 
+int scm_pas_enable_dx_bw(void)
+{
+    return scm_pas_enable_bw();
+}
+EXPORT_SYMBOL(scm_pas_enable_dx_bw);
+
+void scm_pas_disable_dx_bw(void)
+{
+	scm_pas_disable_bw();
+}
+EXPORT_SYMBOL(scm_pas_disable_dx_bw);
+
 int pas_auth_and_reset(enum pas_id id)
 {
 	int ret, bus_ret;

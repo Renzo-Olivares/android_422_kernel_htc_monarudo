@@ -19,6 +19,7 @@
 #include <mach/msm_iomap.h>
 
 #include "msm_sdcc_dml.h"
+#include <mach/msm_rtb_disable.h> 
 
 
 #define DML_CONFIG 0x0000

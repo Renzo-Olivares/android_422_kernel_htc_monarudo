@@ -1692,7 +1692,8 @@ static inline void hci_conn_request_evt(struct hci_dev *hdev, struct sk_buff *sk
 
 			bacpy(&cp.bdaddr, &ev->bdaddr);
 
-			if (lmp_rswitch_capable(hdev) && (mask & HCI_LM_MASTER))
+			if (lmp_rswitch_capable(hdev) && (mask & HCI_LM_MASTER)
+					&& (!is_prefer_slave(&cp.bdaddr)))
 				cp.role = 0x00; 
 			else
 				cp.role = 0x01; 
@@ -2028,6 +2029,10 @@ static inline void hci_cmd_complete_evt(struct hci_dev *hdev, struct sk_buff *sk
 
 	opcode = __le16_to_cpu(ev->opcode);
 
+	if (test_bit(HCI_RESET, &hdev->flags) && (opcode != HCI_OP_RESET))
+		return;
+
+	BT_INFO("DEBUG: %s: %s opcode 0x%x", __func__, hdev->name, opcode);
 	switch (opcode) {
 	case HCI_OP_INQUIRY_CANCEL:
 		hci_cc_inquiry_cancel(hdev, skb);

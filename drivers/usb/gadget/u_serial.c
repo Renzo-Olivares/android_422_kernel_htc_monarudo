@@ -986,6 +986,8 @@ static ssize_t debug_read_status(struct file *file, char __user *ubuf,
 
 	tty = ui_dev->port_tty;
 	gser = ui_dev->port_usb;
+	if (ui_dev->port_usb == NULL)
+		return -ENODEV;
 
 	buf = kzalloc(sizeof(char) * BUF_SIZE, GFP_KERNEL);
 	if (!buf)

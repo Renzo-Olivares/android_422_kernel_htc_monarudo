@@ -20,6 +20,7 @@
 #include "vcd_client_sm.h"
 #include "vcd_core.h"
 #include "vcd_device_sm.h"
+extern u32 vidc_msg_debug;
 
 void vcd_reset_device_channels(struct vcd_dev_ctxt *dev_ctxt);
 

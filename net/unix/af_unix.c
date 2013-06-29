@@ -1039,6 +1039,7 @@ restart:
 
 	
 	if (sock_flag(other, SOCK_DEAD)) {
+		printk(KERN_INFO "[DEBUG]%s other->sk_flags=%ld on %s(%d)\n", __func__, other->sk_flags, current->comm, current->pid);
 		unix_state_unlock(other);
 		sock_put(other);
 		goto restart;
@@ -1055,9 +1056,11 @@ restart:
 		if (!timeo)
 			goto out_unlock;
 
+		printk(KERN_INFO "[DEBUG]%s skb_queue_len=%d  sk_max_ack_backlog=%d on %s(%d)\n", __func__, skb_queue_len(&other->sk_receive_queue), other->sk_max_ack_backlog, current->comm, current->pid);
 		timeo = unix_wait_for_peer(other, timeo);
 
 		err = sock_intr_errno(timeo);
+		printk(KERN_INFO "[DEBUG]%s timeo=0x%lx, err=%d on %s(%d)\n", __func__, timeo, err, current->comm, current->pid);
 		if (signal_pending(current))
 			goto out;
 		sock_put(other);
@@ -1082,6 +1085,7 @@ restart:
 	unix_state_lock_nested(sk);
 
 	if (sk->sk_state != st) {
+		printk(KERN_INFO "[DEBUG]%s sk->sk_state=%d, st=%d on %s(%d)\n", __func__, sk->sk_state, st, current->comm, current->pid);
 		unix_state_unlock(sk);
 		unix_state_unlock(other);
 		sock_put(other);

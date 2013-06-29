@@ -44,6 +44,7 @@
 
 #include "usb.h"
 
+#include <mach/board_htc.h>
 
 
 
@@ -1620,7 +1621,8 @@ void usb_hcd_resume_root_hub (struct usb_hcd *hcd)
 		set_bit(HCD_FLAG_WAKEUP_PENDING, &hcd->flags);
 		
 		if (hcd->product_desc && !strncmp(hcd->product_desc, "Qualcomm EHCI Host Controller using HSIC", 40)) {
-			pr_info("%s: Queue root_hub resume task to PM RT workqueue. %s \n", __FUNCTION__, hcd->product_desc);
+			if (get_radio_flag() & RADIO_FLAG_USB_UPLOAD)
+				pr_info("%s[%d]: Queue hcd->wakeup_work\n", __FUNCTION__, __LINE__);
 			queue_work(pm_rt_wq, &hcd->wakeup_work);
 		} else
 		

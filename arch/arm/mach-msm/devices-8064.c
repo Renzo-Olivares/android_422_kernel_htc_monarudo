@@ -33,7 +33,7 @@
 #include <mach/msm_smd.h>
 #include <mach/msm_dcvs.h>
 #include <mach/msm_rtb.h>
-#include <linux/msm_ion.h>
+#include <linux/ion.h>
 #include "clock.h"
 #include "devices.h"
 #include "footswitch.h"
@@ -97,6 +97,11 @@
 #define MDM2AP_PBLRDY			46
 
 
+struct platform_device msm8064_device_acpuclk = {
+	.name		= "acpuclk-8064",
+	.id		= -1,
+};
+
 static struct msm_watchdog_pdata msm_watchdog_pdata = {
 	.pet_time = 8000,
 	.bark_time = 18000,
@@ -157,14 +162,41 @@ static struct resource resources_uart_gsbi1[] = {
 		.name	= "gsbi_resource",
 		.flags	= IORESOURCE_MEM,
 	},
+#ifdef CONFIG_QSC_MODEM
+	{
+		.start  = DMOV_APQ8064_HSUART_GSBI1_TX_CHAN,
+		.end    = DMOV_APQ8064_HSUART_GSBI1_RX_CHAN,
+		.name   = "uartdm_channels",
+		.flags  = IORESOURCE_DMA,
+	},
+	{
+		.start  = DMOV_APQ8064_HSUART_GSBI1_TX_CRCI,
+		.end    = DMOV_APQ8064_HSUART_GSBI1_RX_CRCI,
+		.name   = "uartdm_crci",
+		.flags  = IORESOURCE_DMA,
+	},
+#endif
 };
-
+#ifdef CONFIG_QSC_MODEM
+static u64 msm_uart_dm1_dma_mask = DMA_BIT_MASK(32);
+struct platform_device apq8064_device_uart_gsbi1 = {
+	.name	= "msm_serial_hs",
+	.id	= 1,
+	.num_resources	= ARRAY_SIZE(resources_uart_gsbi1),
+	.resource	= resources_uart_gsbi1,
+	.dev    = {
+	.dma_mask = &msm_uart_dm1_dma_mask,
+	.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+};
+#else
 struct platform_device apq8064_device_uart_gsbi1 = {
 	.name	= "msm_serial_hsl",
 	.id	= 1,
 	.num_resources	= ARRAY_SIZE(resources_uart_gsbi1),
 	.resource	= resources_uart_gsbi1,
 };
+#endif
 
 static struct resource resources_uart_gsbi2[] = {
 	{
@@ -258,7 +290,7 @@ struct platform_device apq8064_device_uart_gsbi3 = {
 	.id	= 2,
 #elif defined CONFIG_SERIAL_CIR
 	.name	= "msm_serial_cir",
-	.id	= 3,
+	.id	= 2,
 #else
 	.name	= "msm_serial_hsl",
 	.id	= 0,
@@ -329,6 +361,39 @@ static struct resource resources_qup_i2c_gsbi1[] = {
 		.name	= "i2c_sda",
 		.start	= 20,
 		.end	= 20,
+		.flags	= IORESOURCE_IO,
+	},
+};
+
+static struct resource resources_qup_i2c_gsbi7[] = {
+	{
+		.name	= "gsbi_qup_i2c_addr",
+		.start	= MSM_GSBI7_PHYS,
+		.end	= MSM_GSBI7_PHYS + 4 - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "qup_phys_addr",
+		.start	= MSM_GSBI7_QUP_PHYS,
+		.end	= MSM_GSBI7_QUP_PHYS + MSM_QUP_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "qup_err_intr",
+		.start	= GSBI7_QUP_IRQ,
+		.end	= GSBI7_QUP_IRQ,
+		.flags	= IORESOURCE_IRQ,
+	},
+	{
+		.name	= "i2c_clk",
+		.start	= 85,
+		.end	= 85,
+		.flags	= IORESOURCE_IO,
+	},
+	{
+		.name	= "i2c_sda",
+		.start	= 84,
+		.end	= 84,
 		.flags	= IORESOURCE_IO,
 	},
 };
@@ -455,6 +520,13 @@ struct platform_device mpq8064_device_qup_i2c_gsbi5 = {
 	.resource	= resources_qup_i2c_gsbi5,
 };
 
+struct platform_device apq8064_device_qup_i2c_gsbi7 = {
+	.name		= "qup_i2c",
+	.id		= 7,
+	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi7),
+	.resource	= resources_qup_i2c_gsbi7,
+};
+
 static struct resource resources_uart_gsbi7[] = {
 	{
 		.start	= GSBI7_UARTDM_IRQ,
@@ -564,11 +636,19 @@ struct msm_dai_auxpcm_pdata apq_auxpcm_pdata = {
 	.mode_16k = {
 		.mode = AFE_PCM_CFG_MODE_PCM,
 		.sync = AFE_PCM_CFG_SYNC_INT,
+#ifdef CONFIG_BT_WBS_BRCM
+		.frame = AFE_PCM_CFG_FRM_128BPF,
+#else
 		.frame = AFE_PCM_CFG_FRM_256BPF,
+#endif
 		.quant = AFE_PCM_CFG_QUANT_LINEAR_NOPAD,
 		.slot = 0,
 		.data = AFE_PCM_CFG_CDATAOE_MASTER,
+#ifdef CONFIG_BT_WBS_BRCM
+		.pcm_clk_rate = 2048000,
+#else
 		.pcm_clk_rate = 4096000,
+#endif
 	}
 };
 
@@ -1097,13 +1177,13 @@ static struct msm_bus_vectors vidc_venc_1080p_vectors[] = {
 		.src = MSM_BUS_MASTER_VIDEO_ENC,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab  = 372244480,
-		.ib  = 2560000000U,
+		.ib  = 3200000000U,
 	},
 	{
 		.src = MSM_BUS_MASTER_VIDEO_DEC,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
 		.ab  = 501219328,
-		.ib  = 2560000000U,
+		.ib  = 3200000000U,
 	},
 	{
 		.src = MSM_BUS_MASTER_AMPSS_M0,
@@ -2318,6 +2398,9 @@ static uint16_t msm_mpm_bypassed_apps_irqs[] __initdata = {
 	RIVA_APPS_WLAN_SMSM_IRQ,
 	RIVA_APPS_WLAN_RX_DATA_AVAIL_IRQ,
 	RIVA_APPS_WLAN_DATA_XFER_DONE_IRQ,
+#if defined (CONFIG_MACH_M7_UL) || defined (CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
+	INT_KEY_HP,
+#endif
 };
 
 struct msm_mpm_device_data apq8064_mpm_dev_data __initdata = {
@@ -2345,43 +2428,33 @@ struct platform_device apq8064_cpu_idle_device = {
 	},
 };
 
-static struct msm_dcvs_core_info apq8064_core_info = {
-	.num_cores		= 4,
-	.sensors		= (int[]){7, 8, 9, 10},
-	.thermal_poll_ms	= 60000,
-	.core_param		= {
-		.core_type	= MSM_DCVS_CORE_TYPE_CPU,
-	},
-	.algo_param		= {
-		.disable_pc_threshold		= 1458000,
-		.em_win_size_min_us		= 100000,
-		.em_win_size_max_us		= 300000,
-		.em_max_util_pct		= 97,
-		.group_id			= 1,
-		.max_freq_chg_time_us		= 100000,
-		.slack_mode_dynamic		= 0,
-		.slack_weight_thresh_pct	= 3,
-		.slack_time_min_us		= 45000,
-		.slack_time_max_us		= 45000,
-		.ss_no_corr_below_freq		= 0,
-		.ss_win_size_min_us		= 1000000,
-		.ss_win_size_max_us		= 1000000,
-		.ss_util_pct			= 95,
-	},
-	.energy_coeffs		= {
-		.active_coeff_a		= 336,
-		.active_coeff_b		= 0,
-		.active_coeff_c		= 0,
+static struct msm_dcvs_freq_entry apq8064_freq[] = {
+	{ 384000, 166981,  345600},
+	{ 702000, 213049,  632502},
+	{1026000, 285712,  925613},
+	{1242000, 383945, 1176550},
+	{1458000, 419729, 1465478},
+	{1512000, 434116, 1546674},
 
-		.leakage_coeff_a	= -17720,
-		.leakage_coeff_b	= 37,
-		.leakage_coeff_c	= 3329,
-		.leakage_coeff_d	= -277,
+};
+
+static struct msm_dcvs_core_info apq8064_core_info = {
+	.freq_tbl = &apq8064_freq[0],
+	.core_param = {
+		.max_time_us = 100000,
+		.num_freq = ARRAY_SIZE(apq8064_freq),
 	},
-	.power_param		= {
-		.current_temp	= 25,
-		.num_freq	= 0, /* set at runtime */
-	}
+	.algo_param = {
+		.slack_time_us = 58000,
+		.scale_slack_time = 0,
+		.scale_slack_time_pct = 0,
+		.disable_pc_threshold = 1458000,
+		.em_window_size = 100000,
+		.em_max_util_pct = 97,
+		.ss_window_size = 1000000,
+		.ss_util_pct = 95,
+		.ss_iobusy_conv = 100,
+	},
 };
 
 struct platform_device apq8064_msm_gov_device = {
@@ -2573,67 +2646,67 @@ struct platform_device apq8064_etm_device = {
 };
 
 struct msm_iommu_domain_name apq8064_iommu_ctx_names[] = {
-	/* Camera */
+	
 	{
 		.name = "vpe_src",
 		.domain = CAMERA_DOMAIN,
 	},
-	/* Camera */
+	
 	{
 		.name = "vpe_dst",
 		.domain = CAMERA_DOMAIN,
 	},
-	/* Camera */
+	
 	{
 		.name = "vfe_imgwr",
 		.domain = CAMERA_DOMAIN,
 	},
-	/* Camera */
+	
 	{
 		.name = "vfe_misc",
 		.domain = CAMERA_DOMAIN,
 	},
-	/* Camera */
+	
 	{
 		.name = "ijpeg_src",
 		.domain = CAMERA_DOMAIN,
 	},
-	/* Camera */
+	
 	{
 		.name = "ijpeg_dst",
 		.domain = CAMERA_DOMAIN,
 	},
-	/* Camera */
+	
 	{
 		.name = "jpegd_src",
 		.domain = CAMERA_DOMAIN,
 	},
-	/* Camera */
+	
 	{
 		.name = "jpegd_dst",
 		.domain = CAMERA_DOMAIN,
 	},
-	/* Rotator src*/
+	
 	{
 		.name = "rot_src",
 		.domain = ROTATOR_SRC_DOMAIN,
 	},
-	/* Rotator dst */
+	
 	{
 		.name = "rot_dst",
 		.domain = ROTATOR_DST_DOMAIN,
 	},
-	/* Video */
+	
 	{
 		.name = "vcodec_a_mm1",
 		.domain = VIDEO_DOMAIN,
 	},
-	/* Video */
+	
 	{
 		.name = "vcodec_b_mm2",
 		.domain = VIDEO_DOMAIN,
 	},
-	/* Video */
+	
 	{
 		.name = "vcodec_a_stream",
 		.domain = VIDEO_DOMAIN,
@@ -2641,27 +2714,20 @@ struct msm_iommu_domain_name apq8064_iommu_ctx_names[] = {
 };
 
 static struct mem_pool apq8064_video_pools[] =  {
-	/*
-	 * Video hardware has the following requirements:
-	 * 1. All video addresses used by the video hardware must be at a higher
-	 *    address than video firmware address.
-	 * 2. Video hardware can only access a range of 256MB from the base of
-	 *    the video firmware.
-	*/
 	[VIDEO_FIRMWARE_POOL] =
-	/* Low addresses, intended for video firmware */
+	
 		{
 			.paddr	= SZ_128K,
 			.size	= SZ_16M - SZ_128K,
 		},
 	[VIDEO_MAIN_POOL] =
-	/* Main video pool */
+	
 		{
 			.paddr	= SZ_16M,
 			.size	= SZ_256M - SZ_16M,
 		},
 	[GEN_POOL] =
-	/* Remaining address space up to 2G */
+	
 		{
 			.paddr	= SZ_256M,
 			.size	= SZ_2G - SZ_256M,
@@ -2670,7 +2736,7 @@ static struct mem_pool apq8064_video_pools[] =  {
 
 static struct mem_pool apq8064_camera_pools[] =  {
 	[GEN_POOL] =
-	/* One address space for camera */
+	
 		{
 			.paddr	= SZ_128K,
 			.size	= SZ_2G - SZ_128K,
@@ -2679,7 +2745,7 @@ static struct mem_pool apq8064_camera_pools[] =  {
 
 static struct mem_pool apq8064_display_read_pools[] =  {
 	[GEN_POOL] =
-	/* One address space for display reads */
+	
 		{
 			.paddr	= SZ_128K,
 			.size	= SZ_2G - SZ_128K,
@@ -2688,7 +2754,7 @@ static struct mem_pool apq8064_display_read_pools[] =  {
 
 static struct mem_pool apq8064_display_write_pools[] =  {
 	[GEN_POOL] =
-	/* One address space for display writes */
+	
 		{
 			.paddr	= SZ_128K,
 			.size	= SZ_2G - SZ_128K,
@@ -2697,7 +2763,7 @@ static struct mem_pool apq8064_display_write_pools[] =  {
 
 static struct mem_pool apq8064_rotator_src_pools[] =  {
 	[GEN_POOL] =
-	/* One address space for rotator src */
+	
 		{
 			.paddr	= SZ_128K,
 			.size	= SZ_2G - SZ_128K,
@@ -2706,7 +2772,7 @@ static struct mem_pool apq8064_rotator_src_pools[] =  {
 
 static struct mem_pool apq8064_rotator_dst_pools[] =  {
 	[GEN_POOL] =
-	/* One address space for rotator dst */
+	
 		{
 			.paddr	= SZ_128K,
 			.size	= SZ_2G - SZ_128K,

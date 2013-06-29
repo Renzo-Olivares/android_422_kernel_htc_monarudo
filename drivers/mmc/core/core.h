@@ -75,7 +75,6 @@ int mmc_attach_sd(struct mmc_host *host);
 int mmc_attach_sdio(struct mmc_host *host);
 
 #ifdef CONFIG_MMC_CPRM_SUPPORT
-int mmc_sd_get_card_info(struct mmc_card *card);
 int mmc_sd_read_sd_status(struct mmc_card *card);
 #endif
 

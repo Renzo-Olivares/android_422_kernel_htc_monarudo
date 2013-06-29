@@ -30,7 +30,7 @@ MODULE_LICENSE("GPL");
 
 
 #define BTHID_NAME              "bthid"
-#define BTHID_MINOR             224
+#define BTHID_MINOR             MISC_DYNAMIC_MINOR 
 #define BTHID_IOCTL_RPT_DSCP    1
 #define BTHID_MAX_CTRL_BUF_LEN  508
 

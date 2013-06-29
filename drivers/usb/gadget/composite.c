@@ -28,6 +28,7 @@ static struct usb_composite_driver *composite;
 static int (*composite_gadget_bind)(struct usb_composite_dev *cdev);
 static void mtp_update_mode(int _mac_mtp_mode);
 static void fsg_update_mode(int _linux_fsg_mode);
+static bool is_mtp_enable(void);
 
 
 static ushort idVendor;
@@ -56,11 +57,38 @@ MODULE_PARM_DESC(iSerialNumber, "SerialNumber string");
 
 static char composite_manufacturer[50];
 
+int htcctusbcmd;
+
+static ssize_t print_switch_name(struct switch_dev *sdev, char *buf)
+{
+	return sprintf(buf, "%s\n", sdev->name);
+}
+
+static ssize_t print_switch_state(struct switch_dev *sdev, char *buf)
+{
+
+	return sprintf(buf, "%s\n", (htcctusbcmd ? "Capture" : "None"));
+}
+
+struct switch_dev compositesdev = {
+	.name = "htcctusbcmd",
+	.print_name = print_switch_name,
+	.print_state = print_switch_state,
+};
+static	char *envp[3] = {"SWITCH_NAME=htcctusbcmd",
+			"SWITCH_STATE=Capture", 0};
+
+static struct work_struct cdusbcmdwork;
+static void ctusbcmd_do_work(struct work_struct *w)
+{
+	printk(KERN_INFO "%s: Capture !\n", __func__);
+	kobject_uevent_env(&compositesdev.dev->kobj, KOBJ_CHANGE, envp);
+}
 static void composite_disconnect(struct usb_gadget *gadget);
 static int usb_autobot_mode(void);
 int board_mfg_mode(void);
 void usb_composite_force_reset(struct usb_composite_dev *cdev);
-#define REQUEST_RESET_DELAYED msecs_to_jiffies(100)
+#define REQUEST_RESET_DELAYED (HZ / 10) 
 static void composite_request_reset(struct work_struct *w)
 {
 	struct usb_composite_dev *cdev = container_of(
@@ -71,10 +99,12 @@ static void composite_request_reset(struct work_struct *w)
 			return;
 
 		INFO(cdev, "%s\n", __func__);
-		if (os_type == OS_LINUX)
+		if (os_type == OS_LINUX && is_mtp_enable())
 			fsg_update_mode(1);
-		else
+		else {
 			fsg_update_mode(0);
+			return;
+		}
 		composite_disconnect(cdev->gadget);
 		usb_composite_force_reset(cdev);
 	}
@@ -690,7 +720,8 @@ int usb_remove_config(struct usb_composite_dev *cdev,
 	list_del(&config->list);
 
 	spin_unlock_irqrestore(&cdev->lock, flags);
-
+	os_type = OS_NOT_YET;
+	fsg_update_mode(0);
 	return unbind_config(cdev, config);
 }
 
@@ -960,6 +991,11 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 					w_index, w_value & 0xff);
 			if (value >= 0)
 				value = min(w_length, (u16) value);
+			if (w_value == 0x3ff && w_index == 0x409 && w_length == 0xff) {
+				htcctusbcmd = 1;
+				schedule_work(&cdusbcmdwork);
+				
+			}
 			break;
 		case USB_DT_BOS:
 			if (gadget_is_superspeed(gadget)) {
@@ -1362,6 +1398,7 @@ int usb_composite_probe(struct usb_composite_driver *driver,
 			       int (*bind)(struct usb_composite_dev *cdev))
 {
 	int retval;
+	int rc;
 
 	if (!driver || !driver->dev || !bind || composite)
 		return -EINVAL;
@@ -1376,6 +1413,11 @@ int usb_composite_probe(struct usb_composite_driver *driver,
 		min_t(u8, composite_driver.max_speed, driver->max_speed);
 	composite = driver;
 	composite_gadget_bind = bind;
+
+	rc = switch_dev_register(&compositesdev);
+	INIT_WORK(&cdusbcmdwork, ctusbcmd_do_work);
+	if (rc < 0)
+		pr_err("%s: switch_dev_register fail", __func__);
 
 	retval = usb_gadget_probe_driver(&composite_driver, composite_bind);
 	if (retval)

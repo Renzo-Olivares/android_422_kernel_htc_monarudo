@@ -126,13 +126,17 @@ int cpuidle_idle_call(void)
 		return 0;
 	}
 
+	
+#ifndef CONFIG_ARCH_MSM
 	trace_power_start_rcuidle(POWER_CSTATE, next_state, dev->cpu);
 	trace_cpu_idle_rcuidle(next_state, dev->cpu);
-
+#endif
 	entered_state = cpuidle_enter_ops(dev, drv, next_state);
 
+#ifndef CONFIG_ARCH_MSM
 	trace_power_end_rcuidle(dev->cpu);
 	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, dev->cpu);
+#endif
 
 	if (entered_state >= 0) {
 		
@@ -319,11 +323,13 @@ EXPORT_SYMBOL_GPL(cpuidle_disable_device);
 static int __cpuidle_register_device(struct cpuidle_device *dev)
 {
 	int ret;
-	struct device *cpu_dev = get_cpu_device((unsigned long)dev->cpu);
+	struct device *cpu_dev;
 	struct cpuidle_driver *cpuidle_driver = cpuidle_get_driver();
 
 	if (!dev)
 		return -EINVAL;
+	cpu_dev = get_cpu_device((unsigned long)dev->cpu);
+
 	if (!try_module_get(cpuidle_driver->owner))
 		return -EINVAL;
 
@@ -396,9 +402,9 @@ static void smp_callback(void *v)
 static int cpuidle_latency_notify(struct notifier_block *b,
 		unsigned long l, void *v)
 {
-	mutex_lock(&latency_notify_lock);
-	smp_call_function(smp_callback, NULL, 1);
-	mutex_unlock(&latency_notify_lock);
+    mutex_lock(&latency_notify_lock);
+    smp_call_function(smp_callback, NULL, 1);
+    mutex_unlock(&latency_notify_lock);
 	return NOTIFY_OK;
 }
 

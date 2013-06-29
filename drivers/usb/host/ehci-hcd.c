@@ -788,6 +788,8 @@ static irqreturn_t ehci_irq (struct usb_hcd *hcd)
 	
 	if (unlikely ((status & STS_FATAL) != 0)) {
 		ehci_err(ehci, "fatal error\n");
+		if (hcd->driver->dump_qh_qtd)
+			hcd->driver->dump_qh_qtd(hcd);
 		if (hcd->driver->dump_regs)
 			hcd->driver->dump_regs(hcd);
 		

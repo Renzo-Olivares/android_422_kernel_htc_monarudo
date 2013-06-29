@@ -797,7 +797,17 @@ static int gspca_init_transfer(struct gspca_dev *gspca_dev)
 
 	
 	intf = usb_ifnum_to_if(gspca_dev->dev, gspca_dev->iface);
-	gspca_dev->alt = gspca_dev->cam.bulk ? intf->num_altsetting : 0;
+
+	
+	if (intf == NULL) {
+		pr_err("no USB interface found.\n");
+		ret = -EIO;
+		goto unlock;
+	} else {
+		gspca_dev->alt = gspca_dev->cam.bulk ? intf->num_altsetting : 0;
+	}
+	
+
 	if (gspca_dev->sd_desc->isoc_init) {
 		ret = gspca_dev->sd_desc->isoc_init(gspca_dev);
 		if (ret < 0)

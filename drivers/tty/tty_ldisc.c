@@ -409,6 +409,12 @@ int tty_set_ldisc(struct tty_struct *tty, int ldisc)
 
 	mutex_unlock(&tty->ldisc_mutex);
 
+#if defined(CONFIG_MSM_SMD0_WQ)
+	if (!strcmp(tty->name, "smd0"))
+		flush_workqueue(tty_wq);
+	else
+#endif
+
 	tty_ldisc_flush_works(tty);
 
 	retval = tty_ldisc_wait_idle(tty, 5 * HZ);
@@ -456,10 +462,23 @@ enable:
 	if (o_tty)
 		tty_ldisc_enable(o_tty);
 
-	if (work)
+	if (work) {
+#if defined(CONFIG_MSM_SMD0_WQ)
+	if (!strcmp(tty->name, "smd0"))
+		queue_work(tty_wq, &tty->buf.work);
+	else
+#endif
 		schedule_work(&tty->buf.work);
-	if (o_work)
+	}
+
+	if (o_work) {
+#if defined(CONFIG_MSM_SMD0_WQ)
+		if (!strcmp(o_tty->name, "smd0"))
+			queue_work(tty_wq, &tty->buf.work);
+		else
+#endif
 		schedule_work(&o_tty->buf.work);
+	}
 	mutex_unlock(&tty->ldisc_mutex);
 	tty_unlock();
 	return retval;
@@ -587,6 +606,11 @@ void tty_ldisc_release(struct tty_struct *tty, struct tty_struct *o_tty)
 
 	tty_unlock();
 	tty_ldisc_halt(tty);
+#if defined(CONFIG_MSM_SMD0_WQ)
+	if (!strcmp(tty->name, "smd0"))
+		flush_workqueue(tty_wq);
+	else
+#endif
 	tty_ldisc_flush_works(tty);
 	tty_lock();
 

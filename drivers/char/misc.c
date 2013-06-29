@@ -19,7 +19,7 @@
 static LIST_HEAD(misc_list);
 static DEFINE_MUTEX(misc_mtx);
 
-#define DYNAMIC_MINORS 64 
+#define DYNAMIC_MINORS 128 
 static DECLARE_BITMAP(misc_minors, DYNAMIC_MINORS);
 
 #ifdef CONFIG_PROC_FS

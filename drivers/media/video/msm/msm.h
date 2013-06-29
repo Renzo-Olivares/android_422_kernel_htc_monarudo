@@ -279,6 +279,7 @@ struct msm_cam_media_controller {
 #ifdef CONFIG_PERFLOCK
 	struct perf_lock *cam_perf_lock;
 #endif
+	struct stats_htc_af htc_af_info;
 };
 
 struct msm_isp_ops {
@@ -413,6 +414,12 @@ struct msm_cam_server_mctl_inst {
 	uint32_t handle;
 };
 
+struct cam_vcm_wa_ctrl {
+	void (*cam_do_vcm_on_cb)(void);
+	void (*cam_do_vcm_off_cb)(void);
+	void (*vcm_vreg_off)(void);
+	void (*actuator_power_off_af)(void);
+};
 
 struct msm_cam_server_dev {
 
@@ -504,6 +511,10 @@ unsigned long msm_pmem_stats_ptov_lookup(
 	struct msm_cam_media_controller *mctl,
 	unsigned long addr, int *fd);
 
+unsigned long msm_pmem_stats_ptov_lookup_2(
+	struct msm_cam_media_controller *mctl,
+	unsigned long addr, int *fd);
+
 int msm_vfe_subdev_init(struct v4l2_subdev *sd,
 			struct msm_cam_media_controller *mctl);
 void msm_vfe_subdev_release(struct v4l2_subdev *sd);
@@ -588,10 +599,6 @@ int msm_server_close_client(int idx);
 int msm_cam_server_open_mctl_session(struct msm_cam_v4l2_device *pcam,
 	int *p_active);
 int msm_cam_server_close_mctl_session(struct msm_cam_v4l2_device *pcam);
-
-#ifdef CONFIG_RAWCHIP
-int rawchip_init(void *arg);
-#endif
 
 #endif 
 

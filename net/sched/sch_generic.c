@@ -89,6 +89,12 @@ int sch_direct_xmit(struct sk_buff *skb, struct Qdisc *q,
 {
 	int ret = NETDEV_TX_BUSY;
 
+    if (IS_ERR(skb) || (!skb))
+        return 0;
+
+    if (IS_ERR(dev) || (!dev))
+        return 0;
+
 	
 	spin_unlock(root_lock);
 

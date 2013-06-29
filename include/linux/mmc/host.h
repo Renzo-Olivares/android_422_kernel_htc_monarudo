@@ -19,6 +19,8 @@
 #include <linux/mmc/core.h>
 #include <linux/mmc/pm.h>
 #include <linux/android_alarm.h>
+
+#define SD_DEBOUNCE_DEBUG	1
 struct mmc_ios {
 	unsigned int	clock;			
 	unsigned short	vdd;
@@ -141,6 +143,7 @@ struct mmc_host {
 	u32			ocr_avail_sd;	
 	u32			ocr_avail_mmc;	
 	struct notifier_block	pm_notify;
+	int					tp_enable;
 	int					burst_mode;
 	struct background_ops_timer bkops_timer;
 	int					bkops_count;
@@ -328,8 +331,9 @@ struct mmc_host {
 		ktime_t wtime_drv;	   
 		ktime_t start;
 	} perf;
-	bool perf_enable;
 #endif
+	bool perf_enable;
+	ktime_t rq_start;
 
 	struct mmc_ios saved_ios;
 	unsigned long		private[0] ____cacheline_aligned;
@@ -382,7 +386,6 @@ extern int mmc_suspend_host(struct mmc_host *);
 extern int mmc_resume_host(struct mmc_host *);
 
 #ifdef CONFIG_MMC_CPRM_SUPPORT
-extern int mmc_read_card_info(struct mmc_card *card);
 extern int mmc_read_sd_status(struct mmc_card *card);
 #endif
 extern int mmc_bkops_resume_task(struct mmc_host *);

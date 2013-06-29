@@ -3150,7 +3150,7 @@ int sched_setscheduler(struct task_struct *p, int policy,
 {
 	return __sched_setscheduler(p, policy, param, true);
 }
-EXPORT_SYMBOL_GPL(sched_setscheduler);
+EXPORT_SYMBOL(sched_setscheduler);
 
 int sched_setscheduler_nocheck(struct task_struct *p, int policy,
 			       const struct sched_param *param)
@@ -3304,7 +3304,7 @@ out_put_task:
 	put_online_cpus();
 	return retval;
 }
-
+EXPORT_SYMBOL_GPL(sched_setaffinity);
 static int get_user_cpu_mask(unsigned long __user *user_mask_ptr, unsigned len,
 			     struct cpumask *new_mask)
 {
@@ -3643,14 +3643,32 @@ void sched_show_task(struct task_struct *p)
 #ifdef CONFIG_DEBUG_STACK_USAGE
 	free = stack_not_used(p);
 #endif
-	printk(KERN_CONT "%5lu %5d %6d 0x%08lx\n", free,
+	printk(KERN_CONT "%5lu %5d %6d 0x%08lx c%d %llu\n", free,
 		task_pid_nr(p), task_pid_nr(rcu_dereference(p->real_parent)),
-		(unsigned long)task_thread_info(p)->flags);
+		(unsigned long)task_thread_info(p)->flags, p->on_cpu,
+#if defined(CONFIG_SCHEDSTATS) || defined(CONFIG_TASK_DELAY_ACCT)
+		div64_u64(task_rq(p)->clock - p->sched_info.last_arrival, NSEC_PER_MSEC));
+#else
+		(unsigned long long)0);
+#endif
+
+#if defined(CONFIG_DEBUG_MUTEXES)
+	if (state == TASK_UNINTERRUPTIBLE)
+		if (p->blocked_by)
+			printk(KERN_CONT "  blocked by %s (%d) for %u ms\n",
+				p->blocked_by->comm, p->blocked_by->tgid,
+				jiffies_to_msecs(jiffies - p->blocked_since));
+#endif
 
 	show_stack(p, NULL);
 }
 
 void show_state_filter(unsigned long state_filter)
+{
+	show_thread_group_state_filter(NULL, state_filter);
+}
+
+void show_thread_group_state_filter(const char *tg_comm, unsigned long state_filter)
 {
 	struct task_struct *g, *p;
 
@@ -3664,8 +3682,10 @@ void show_state_filter(unsigned long state_filter)
 	rcu_read_lock();
 	do_each_thread(g, p) {
 		touch_nmi_watchdog();
-		if (!state_filter || (p->state & state_filter))
-			sched_show_task(p);
+		if (!tg_comm || (tg_comm && !strncmp(tg_comm, g->comm, TASK_COMM_LEN))) {
+			if (!state_filter || (p->state & state_filter))
+				sched_show_task(p);
+		}
 	} while_each_thread(g, p);
 
 	touch_all_softlockup_watchdogs();
@@ -3827,18 +3847,11 @@ void idle_task_exit(void)
 	mmdrop(mm);
 }
 
-static void migrate_nr_uninterruptible(struct rq *rq_src)
+static void calc_load_migrate(struct rq *rq)
 {
-	struct rq *rq_dest = cpu_rq(cpumask_any(cpu_active_mask));
-
-	rq_dest->nr_uninterruptible += rq_src->nr_uninterruptible;
-	rq_src->nr_uninterruptible = 0;
-}
-
-static void calc_global_load_remove(struct rq *rq)
-{
-	atomic_long_sub(rq->calc_load_active, &calc_load_tasks);
-	rq->calc_load_active = 0;
+	long delta = calc_load_fold_active(rq);
+	if (delta)
+		atomic_long_add(delta, &calc_load_tasks);
 }
 
 static void migrate_tasks(unsigned int dead_cpu)
@@ -3848,9 +3861,6 @@ static void migrate_tasks(unsigned int dead_cpu)
 	int dest_cpu;
 
 	rq->stop = NULL;
-
-	
-	unthrottle_offline_cfs_rqs(rq);
 
 	for ( ; ; ) {
 		if (rq->nr_running == 1)
@@ -4099,9 +4109,10 @@ migration_call(struct notifier_block *nfb, unsigned long action, void *hcpu)
 		migrate_tasks(cpu);
 		BUG_ON(rq->nr_running != 1); 
 		raw_spin_unlock_irqrestore(&rq->lock, flags);
+		break;
 
-		migrate_nr_uninterruptible(rq);
-		calc_global_load_remove(rq);
+	case CPU_DEAD:
+		calc_load_migrate(rq);
 		break;
 #endif
 	}
@@ -4764,16 +4775,20 @@ build_sched_groups(struct sched_domain *sd, int cpu)
 			last->next = sg;
 		last = sg;
 	}
-	last->next = first;
+
+	if (last)
+		last->next = first;
 
 	return 0;
 }
 
 static void init_sched_groups_power(int cpu, struct sched_domain *sd)
 {
-	struct sched_group *sg = sd->groups;
+	struct sched_group *sg;
 
-	WARN_ON(!sd || !sg);
+	BUG_ON(!sd);
+	sg = sd->groups;
+	BUG_ON(!sg);
 
 	do {
 		sg->group_weight = cpumask_weight(sched_group_cpus(sg));

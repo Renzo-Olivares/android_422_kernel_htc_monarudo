@@ -35,6 +35,8 @@ struct msm_rtb_platform_data {
 
 #if defined(CONFIG_MSM_RTB)
 
+int msm_rtb_enabled(void);
+
 void msm_rtb_disable(void);
 
 unsigned long get_current_timestamp(void);
@@ -57,6 +59,8 @@ int uncached_logk(enum logk_event_type log_type, void *data);
 				isb();\
 			 } while (0)
 #else
+
+static inline int msm_rtb_enabled(void) { return 0; }
 
 static inline void msm_rtb_disable(void) { return; }
 

@@ -130,7 +130,11 @@ extern void msm_map_msm8960_io(void);
 
 #else 
 
-#define MSM_HTC_RAM_CONSOLE_PHYS	0x8F100000
+  #if defined(CONFIG_ARCH_DUMMY) || defined(CONFIG_ARCH_DUMMY)
+    #define MSM_HTC_RAM_CONSOLE_PHYS	0x8D900000	
+  #else
+    #define MSM_HTC_RAM_CONSOLE_PHYS	0x8F100000
+  #endif
 #define MSM_HTC_RAM_CONSOLE_SIZE	(SZ_1M - SZ_128K) 
 
 #define MSM_HTC_DEBUG_INFO_PHYS		(MSM_HTC_RAM_CONSOLE_PHYS + MSM_HTC_RAM_CONSOLE_SIZE)

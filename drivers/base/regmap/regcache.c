@@ -225,7 +225,7 @@ int regcache_sync(struct regmap *map)
 	const char *name;
 	unsigned int bypass;
 
-	BUG_ON(!map->cache_ops || !map->cache_ops->sync);
+	BUG_ON(!map || !map->cache_ops || !map->cache_ops->sync);
 
 	mutex_lock(&map->lock);
 	
@@ -272,7 +272,7 @@ int regcache_sync_region(struct regmap *map, unsigned int min,
 	const char *name;
 	unsigned int bypass;
 
-	BUG_ON(!map->cache_ops || !map->cache_ops->sync);
+	BUG_ON(!map || !map->cache_ops || !map->cache_ops->sync);
 
 	mutex_lock(&map->lock);
 

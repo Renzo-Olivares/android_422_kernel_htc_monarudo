@@ -15,11 +15,8 @@
 #include "msm_camera_i2c.h"
 #include <mach/gpio.h>
 
-#ifdef USE_RAWCHIP_AF
-#define	TI201_TOTAL_STEPS_NEAR_TO_FAR			256
-#else
-#define	TI201_TOTAL_STEPS_NEAR_TO_FAR			52
-#endif
+#define	TI201_TOTAL_STEPS_NEAR_TO_FAR			30
+#define	TI201_TOTAL_STEPS_NEAR_TO_FAR_RAWCHIP_AF			256 
 
 #define REG_VCM_NEW_CODE			0x30F2
 #define REG_VCM_I2C_ADDR			0x1C
@@ -28,6 +25,16 @@
 #define REG_VCM_MODE			0x06
 #define REG_VCM_FREQ			0x07
 #define REG_VCM_RING_CTRL			0x400
+
+int ti201_sharp_kernel_step_table[TI201_TOTAL_STEPS_NEAR_TO_FAR+1]
+	= {304, 309, 314, 319, 324, 329, 333, 339, 344, 350,
+	355, 361, 366, 372, 378, 385, 391, 399, 406, 416,
+	425, 436, 446, 485, 469, 482, 494, 508, 522, 537, 552};
+
+int ti201_liteon_kernel_step_table[TI201_TOTAL_STEPS_NEAR_TO_FAR+1]
+	= {225, 229, 233, 237, 241, 245, 249, 254, 258, 263,
+	267, 272, 276, 281, 286, 291, 296, 303, 309, 317,
+	324, 333, 341, 351, 360, 371, 381, 393, 404, 417, 429};
 
 #define DIV_CEIL(x, y) (x/y + (x%y) ? 1 : 0)
 #if 0
@@ -106,15 +113,28 @@ int32_t ti201_msm_actuator_init_table(
 	struct msm_actuator_ctrl_t *a_ctrl)
 {
 	int32_t rc = 0;
+	int *ref_table = NULL;
 
 	LINFO("%s called\n", __func__);
 
 	if (a_ctrl->func_tbl.actuator_set_params)
 		a_ctrl->func_tbl.actuator_set_params(a_ctrl);
-
+#if 0
 	if (ti201_act_t.step_position_table) {
 		LINFO("%s table inited\n", __func__);
 		return rc;
+	}
+#endif
+
+	if (ti201_msm_actuator_info->use_rawchip_af && a_ctrl->af_algo == AF_ALGO_RAWCHIP)
+		a_ctrl->set_info.total_steps = TI201_TOTAL_STEPS_NEAR_TO_FAR_RAWCHIP_AF;
+	else {
+		a_ctrl->set_info.total_steps = TI201_TOTAL_STEPS_NEAR_TO_FAR;
+		ref_table = (a_ctrl->af_OTP_info.VCM_Vendor == 0x1) ? ti201_sharp_kernel_step_table : ti201_liteon_kernel_step_table;
+		if (a_ctrl->af_OTP_info.VCM_OTP_Read)
+			a_ctrl->initial_code = a_ctrl->af_OTP_info.VCM_Infinity;
+		else
+			a_ctrl->initial_code = ref_table[0];
 	}
 
 	
@@ -136,25 +156,32 @@ int32_t ti201_msm_actuator_init_table(
 		a_ctrl->step_position_table[0] = a_ctrl->initial_code;
 
 		for (i = 1; i <= a_ctrl->set_info.total_steps; i++) {
-#ifdef USE_RAWCHIP_AF
-			if (ti201_msm_actuator_info->use_rawchip_af)
+			if (ti201_msm_actuator_info->use_rawchip_af && a_ctrl->af_algo == AF_ALGO_RAWCHIP) 
 				a_ctrl->step_position_table[i] =
 					a_ctrl->step_position_table[i-1] + 4;
 			else
-#endif
 			{
-			if (i <= ti201_nl_region_boundary1) {
-				a_ctrl->step_position_table[i] =
-					a_ctrl->step_position_table[i-1]
-					+ ti201_nl_region_code_per_step1;
-			} else {
-				a_ctrl->step_position_table[i] =
-					a_ctrl->step_position_table[i-1]
-					+ ti201_l_region_code_per_step;
-			}
+				if (ref_table != NULL) {
+					if (a_ctrl->af_OTP_info.VCM_OTP_Read)
+						a_ctrl->step_position_table[i] = a_ctrl->af_OTP_info.VCM_Infinity +
+							(ref_table[i] - ref_table[0]) * (a_ctrl->af_OTP_info.VCM_Macro - a_ctrl->af_OTP_info.VCM_Infinity) /
+							(ref_table[a_ctrl->set_info.total_steps] - ref_table[0]);
+					else
+						a_ctrl->step_position_table[i] = ref_table[i];
+				} else {
+					if (i <= ti201_nl_region_boundary1) {
+						a_ctrl->step_position_table[i] =
+							a_ctrl->step_position_table[i-1]
+							+ ti201_nl_region_code_per_step1;
+					} else {
+						a_ctrl->step_position_table[i] =
+							a_ctrl->step_position_table[i-1]
+							+ ti201_l_region_code_per_step;
+					}
+				}
 
-			if (a_ctrl->step_position_table[i] > ti201_max_value)
-				a_ctrl->step_position_table[i] = ti201_max_value;
+				if (a_ctrl->step_position_table[i] > ti201_max_value)
+					a_ctrl->step_position_table[i] = ti201_max_value;
 			}
 		}
 		a_ctrl->curr_step_pos = 0;
@@ -221,6 +248,11 @@ int ti201_actuator_af_power_down(void *params)
 {
 	int rc = 0;
 	LINFO("%s called\n", __func__);
+
+#if defined(CONFIG_ACT_OIS_BINDER)
+	if (ti201_msm_actuator_info->oisbinder_power_down)
+		ti201_msm_actuator_info->oisbinder_power_down();
+#endif
 
 	rc = (int) msm_actuator_af_power_down(&ti201_act_t);
 	ti201_poweroff_af();
@@ -295,6 +327,67 @@ static int32_t ti201_act_init_focus(struct msm_actuator_ctrl_t *a_ctrl)
 
 	return rc;
 }
+
+int32_t  ti201_act_set_af_value(struct msm_actuator_ctrl_t *a_ctrl, af_value_t af_value)
+{
+	int32_t rc = 0;
+	uint8_t OTP_data[8] = {0,0,0,0,0,0,0,0};
+	int16_t VCM_Infinity = 0;
+	int32_t otp_deviation = 0;
+
+	if (ti201_msm_actuator_info->use_rawchip_af && a_ctrl->af_algo == AF_ALGO_RAWCHIP)
+		return rc;
+
+	OTP_data[0] = af_value.VCM_START_MSB;
+	OTP_data[1] = af_value.VCM_START_LSB;
+	OTP_data[2] = af_value.AF_INF_MSB;
+	OTP_data[3] = af_value.AF_INF_LSB;
+	OTP_data[4] = af_value.AF_MACRO_MSB;
+	OTP_data[5] = af_value.AF_MACRO_LSB;
+	
+
+	if (OTP_data[2] || OTP_data[3] || OTP_data[4] || OTP_data[5]) {
+		a_ctrl->af_OTP_info.VCM_OTP_Read = true;
+		a_ctrl->af_OTP_info.VCM_Vendor = af_value.VCM_VENDOR;
+		otp_deviation = (a_ctrl->af_OTP_info.VCM_Vendor == 0x1) ? 160 : 60;
+		a_ctrl->af_OTP_info.VCM_Start = 0;
+		VCM_Infinity = (int16_t)(OTP_data[2]<<8 | OTP_data[3]) - otp_deviation;
+		if (VCM_Infinity < 0){
+			a_ctrl->af_OTP_info.VCM_Infinity = 0;
+		}else{
+			a_ctrl->af_OTP_info.VCM_Infinity = VCM_Infinity;
+		}
+		a_ctrl->af_OTP_info.VCM_Macro = (OTP_data[4]<<8 | OTP_data[5]);
+	}
+	pr_info("OTP_data[2] %d OTP_data[3] %d OTP_data[4] %d OTP_data[5] %d\n",
+		OTP_data[2], OTP_data[3], OTP_data[4], OTP_data[5]);
+	pr_info("VCM_Start = %d\n", a_ctrl->af_OTP_info.VCM_Start);
+	pr_info("VCM_Infinity = %d\n", a_ctrl->af_OTP_info.VCM_Infinity);
+	pr_info("VCM_Macro = %d\n", a_ctrl->af_OTP_info.VCM_Macro);
+	pr_info("VCM Module vendor =  = %d\n", a_ctrl->af_OTP_info.VCM_Vendor);
+	return rc;
+}
+
+#if defined(CONFIG_ACT_OIS_BINDER)
+int32_t ti201_act_set_ois_mode(struct msm_actuator_ctrl_t *a_ctrl, int ois_mode)
+{
+	int32_t rc = 0;
+
+	pr_info("[OIS]  %s  ois_mode:%d\n", __func__, ois_mode);
+	if (ti201_msm_actuator_info->oisbinder_act_set_ois_mode)
+		rc = ti201_msm_actuator_info->oisbinder_act_set_ois_mode(ois_mode);
+	return rc;
+}
+int32_t ti201_act_update_ois_tbl(struct msm_actuator_ctrl_t *a_ctrl, struct sensor_actuator_info_t * sensor_actuator_info)
+{
+	int32_t rc = 0;
+
+	pr_info("[OIS]  %s  startup_mode=%d\n", __func__, sensor_actuator_info->startup_mode);
+	if (ti201_msm_actuator_info->oisbinder_mappingTbl_i2c_write)
+		rc = ti201_msm_actuator_info->oisbinder_mappingTbl_i2c_write(sensor_actuator_info->startup_mode, sensor_actuator_info);
+	return rc;
+}
+#endif
 
 static const struct i2c_device_id ti201_act_i2c_id[] = {
 	{"ti201_act", (kernel_ulong_t)&ti201_act_t},
@@ -374,6 +467,11 @@ static int ti201_i2c_add_driver_table(
 		return (int) rc;
 	}
 
+#if defined(CONFIG_ACT_OIS_BINDER)
+	if (ti201_msm_actuator_info->oisbinder_open_init)
+		ti201_msm_actuator_info->oisbinder_open_init();
+#endif
+
 	return (int) rc;
 }
 
@@ -403,13 +501,22 @@ static int32_t ti201_act_create_subdevice(
 	void *board_info,
 	void *sdev)
 {
+	int rc = 0;
+
 	LINFO("%s called\n", __func__);
 
 	ti201_msm_actuator_info = (struct msm_actuator_info *)board_info;
 
-	return (int) msm_actuator_create_subdevice(&ti201_act_t,
+	rc = (int) msm_actuator_create_subdevice(&ti201_act_t,
 		ti201_msm_actuator_info->board_info,
 		(struct v4l2_subdev *)sdev);
+
+#if defined(CONFIG_ACT_OIS_BINDER)
+	if (ti201_msm_actuator_info->oisbinder_i2c_add_driver)
+		ti201_msm_actuator_info->oisbinder_i2c_add_driver(&(ti201_act_t.i2c_client));
+#endif
+
+	return rc;
 }
 
 static struct msm_actuator_ctrl_t ti201_act_t = {
@@ -421,6 +528,9 @@ static struct msm_actuator_ctrl_t ti201_act_t = {
 		.a_power_down = ti201_actuator_af_power_down,
 		.a_create_subdevice = ti201_act_create_subdevice,
 		.a_config = ti201_act_config,
+#if defined(CONFIG_ACT_OIS_BINDER)
+		.is_ois_supported = 1,
+#endif
 	},
 
 	.i2c_client = {
@@ -428,7 +538,7 @@ static struct msm_actuator_ctrl_t ti201_act_t = {
 	},
 
 	.set_info = {
-		.total_steps = TI201_TOTAL_STEPS_NEAR_TO_FAR,
+		.total_steps = TI201_TOTAL_STEPS_NEAR_TO_FAR_RAWCHIP_AF, 
 		.gross_steps = 3,	
 		.fine_steps = 1,	
 	},
@@ -437,6 +547,7 @@ static struct msm_actuator_ctrl_t ti201_act_t = {
 	.curr_region_index = 0,
 	.initial_code = 0,	
 	.actuator_mutex = &ti201_act_mutex,
+	.af_algo = AF_ALGO_RAWCHIP, 
 
 	.func_tbl = {
 		.actuator_init_table = ti201_msm_actuator_init_table,
@@ -445,6 +556,11 @@ static struct msm_actuator_ctrl_t ti201_act_t = {
 		.actuator_set_default_focus = msm_actuator_set_default_focus,
 		.actuator_init_focus = ti201_act_init_focus,
 		.actuator_i2c_write = ti201_wrapper_i2c_write,
+		.actuator_set_af_value = ti201_act_set_af_value,
+#if defined(CONFIG_ACT_OIS_BINDER)
+		.actuator_set_ois_mode = ti201_act_set_ois_mode,
+		.actuator_update_ois_tbl = ti201_act_update_ois_tbl,
+#endif
 	},
 
 	.get_info = {	

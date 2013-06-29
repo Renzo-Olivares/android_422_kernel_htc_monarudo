@@ -269,6 +269,11 @@ int msm_dmov_exec_cmd(unsigned id, unsigned int cmdptr);
 #define DMOV8064_CE_OUT_CHAN       1
 #define DMOV8064_CE_OUT_CRCI       15
 
+#define DMOV_APQ8064_HSUART_GSBI1_TX_CHAN	3
+#define DMOV_APQ8064_HSUART_GSBI1_TX_CRCI	13
+
+#define DMOV_APQ8064_HSUART_GSBI1_RX_CHAN	2
+#define DMOV_APQ8064_HSUART_GSBI1_RX_CRCI	12
 
 #define DMOV_NONE_CRCI        0
 

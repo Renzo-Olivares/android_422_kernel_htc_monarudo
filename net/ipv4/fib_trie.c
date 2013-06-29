@@ -81,6 +81,7 @@
 #include <net/sock.h>
 #include <net/ip_fib.h>
 #include "fib_lookup.h"
+#include <linux/uaccess.h>
 
 #define MAX_STAT_DEPTH 32
 
@@ -95,6 +96,8 @@ typedef unsigned int t_key;
 
 #define IS_TNODE(n) (!(n->parent & T_LEAF))
 #define IS_LEAF(n) (n->parent & T_LEAF)
+
+#define FIB_RULE_DEBUG 1
 
 struct rt_trie_node {
 	unsigned long parent;
@@ -979,6 +982,9 @@ int fib_table_insert(struct fib_table *tb, struct fib_config *cfg)
 	key = ntohl(cfg->fc_dst);
 
 	pr_debug("Insert table=%u %08x/%d\n", tb->tb_id, key, plen);
+#ifdef FIB_RULE_DEBUG
+	printk(KERN_DEBUG "[NET][CORE][RULE] %s Insert table=%u %08x/%d\n", __func__,tb->tb_id,key, plen);
+#endif
 
 	mask = ntohl(inet_make_mask(plen));
 
@@ -1350,6 +1356,9 @@ int fib_table_delete(struct fib_table *tb, struct fib_config *cfg)
 		return -ESRCH;
 
 	pr_debug("Deleting %08x/%d tos=%d t=%p\n", key, plen, tos, t);
+#ifdef FIB_RULE_DEBUG
+	printk(KERN_DEBUG "[NET][CORE][RULE] %s Deleting %08x/%d tos=%d t=%p\n", __func__, key, plen, tos, t);
+#endif
 
 	fa_to_delete = NULL;
 	fa = list_entry(fa->fa_list.prev, struct fib_alias, fa_list);
@@ -1441,28 +1450,39 @@ static int trie_flush_leaf(struct leaf *l)
 
 static struct leaf *leaf_walk_rcu(struct tnode *p, struct rt_trie_node *c)
 {
+
+	void *pq;
+	if ((!p) || (IS_ERR(p)) || (probe_kernel_address(p,pq))) {
+		printk(KERN_DEBUG "[NET][WARN] p is illegal in %s \n", __func__);
+		return NULL; 
+	}
+	printk(KERN_DEBUG "[NET]%s+\n", __func__);
+
 	do {
 		t_key idx;
-#if 1
+		void *q;
+
 		if ((c) && (!IS_ERR(c)))
-#else
-		if (c)
-#endif
 			idx = tkey_extract_bits(c->key, p->pos, p->bits) + 1;
 		else
 			idx = 0;
 
 		while (idx < 1u << p->bits) {
 			c = tnode_get_child_rcu(p, idx++);
-#if 1
-			if ((!c) || (IS_ERR(c)))
-#else
-			if (!c)
-#endif
+
+			if ((!c) || (IS_ERR(c))) {
+				printk(KERN_DEBUG "[NET] c is NULL in %s , idx=%d\n", __func__,idx);
 				continue;
+			}
+
+			if (probe_kernel_address(c,q)) {
+				printk(KERN_DEBUG "[NET] c is in %s illegal, going to next round,idx = %d\n", __func__,idx);
+				continue;
+			}
 
 			if (IS_LEAF(c)) {
 				prefetch(rcu_dereference_rtnl(p->child[idx]));
+				printk(KERN_DEBUG "[NET]%s-,1\n", __func__);
 				return (struct leaf *) c;
 			}
 
@@ -1475,6 +1495,7 @@ static struct leaf *leaf_walk_rcu(struct tnode *p, struct rt_trie_node *c)
 		c = (struct rt_trie_node *) p;
 	} while ((p = node_parent_rcu(c)) != NULL);
 
+	printk(KERN_DEBUG "[NET]%s-,2\n", __func__);
 	return NULL; 
 }
 
@@ -1496,7 +1517,7 @@ static struct leaf *trie_nextleaf(struct leaf *l)
 	struct rt_trie_node *c = (struct rt_trie_node *) l;
 	struct tnode *p = node_parent_rcu(c);
 
-	if (!p)
+	if ((!p) || (IS_ERR(p)))
 		return NULL;	
 
 	return leaf_walk_rcu(p, c);
@@ -1518,7 +1539,9 @@ int fib_table_flush(struct fib_table *tb)
 	struct trie *t = (struct trie *) tb->tb_data;
 	struct leaf *l, *ll = NULL;
 	int found = 0;
-
+#ifdef FIB_RULE_DEBUG
+	printk(KERN_DEBUG  "[NET][CORE][RULE]%s+\n", __func__);
+#endif
 	for (l = trie_firstleaf(t); l; l = trie_nextleaf(l)) {
 		found += trie_flush_leaf(l);
 
@@ -1531,6 +1554,9 @@ int fib_table_flush(struct fib_table *tb)
 		trie_leaf_remove(t, ll);
 
 	pr_debug("trie_flush found=%d\n", found);
+#ifdef FIB_RULE_DEBUG
+	printk(KERN_DEBUG "[NET][CORE][RULE] %s-; trie_flush found=%d\n", __func__, found);
+#endif
 	return found;
 }
 
@@ -1617,6 +1643,10 @@ int fib_table_dump(struct fib_table *tb, struct sk_buff *skb,
 	struct trie *t = (struct trie *) tb->tb_data;
 	t_key key = cb->args[2];
 	int count = cb->args[3];
+
+#ifdef FIB_RULE_DEBUG
+	printk(KERN_DEBUG  "[NET][CORE][RULE]%s\n", __func__);
+#endif
 
 	rcu_read_lock();
 	if (count == 0)
@@ -2115,6 +2145,7 @@ static struct leaf *fib_route_get_idx(struct fib_route_iter *iter, loff_t pos)
 {
 	struct leaf *l = NULL;
 	struct trie *t = iter->main_trie;
+	printk(KERN_DEBUG "[NET]%s+\n", __func__);
 
 	
 	if (iter->pos > 0 && pos >= iter->pos && (l = fib_find_node(t, iter->key)))
@@ -2134,6 +2165,7 @@ static struct leaf *fib_route_get_idx(struct fib_route_iter *iter, loff_t pos)
 	else
 		iter->pos = 0;		
 
+	printk(KERN_DEBUG "[NET]%s-\n", __func__);
 	return l;
 }
 
@@ -2143,12 +2175,15 @@ static void *fib_route_seq_start(struct seq_file *seq, loff_t *pos)
 	struct fib_route_iter *iter = seq->private;
 	struct fib_table *tb;
 
+	printk(KERN_DEBUG  "[NET]%s\n", __func__);
+
 	rcu_read_lock();
 	tb = fib_get_table(seq_file_net(seq), RT_TABLE_MAIN);
 	if (!tb)
 		return NULL;
 
 	iter->main_trie = (struct trie *) tb->tb_data;
+
 	if (*pos == 0)
 		return SEQ_START_TOKEN;
 	else
@@ -2160,6 +2195,7 @@ static void *fib_route_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 	struct fib_route_iter *iter = seq->private;
 	struct leaf *l = v;
 
+	printk(KERN_DEBUG  "[NET]%s+\n", __func__);
 	++*pos;
 	if (v == SEQ_START_TOKEN) {
 		iter->pos = 0;
@@ -2173,12 +2209,15 @@ static void *fib_route_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 		iter->key = l->key;
 	else
 		iter->pos = 0;
+
+	printk(KERN_DEBUG "[NET]%s-\n", __func__);
 	return l;
 }
 
 static void fib_route_seq_stop(struct seq_file *seq, void *v)
 	__releases(RCU)
 {
+	printk(KERN_DEBUG  "[NET]%s\n", __func__);
 	rcu_read_unlock();
 }
 

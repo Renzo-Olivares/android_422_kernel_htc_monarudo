@@ -38,7 +38,6 @@ struct mmc_ioc_cmd {
 struct mmc_ioc_cmd_extend {
 	struct sd_ssr ssr;							
 	u32 ccs;									
-	u32 capacity_of_protected_area_in_byte;		
 	u32 card_status;							
 	u32 capacity;								
 };

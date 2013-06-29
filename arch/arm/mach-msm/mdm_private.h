@@ -36,15 +36,18 @@ struct mdm_modem_drv {
 	unsigned mdm2ap_hsic_ready_gpio;
 	
 	unsigned ap2mdm_ipc1_gpio;
+	unsigned mdm2ap_bootloader_gpio;
 	
 
 	int mdm_errfatal_irq;
 	int mdm_status_irq;
+	int mdm2ap_bootloader_irq;
 	int mdm_ready;
 	int mdm_boot_status;
 	int mdm_ram_dump_status;
 	enum charm_boot_type boot_type;
 	int mdm_debug_on;
+	int mdm_hsic_reconnectd;
 
 	struct mdm_ops *ops;
 	struct mdm_platform_data *pdata;

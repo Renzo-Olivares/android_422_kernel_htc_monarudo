@@ -228,9 +228,17 @@ struct dev_pm_info {
 	ktime_t			suspend_time;
 	s64			max_time_suspended_ns;
 	struct dev_pm_qos_request *pq_req;
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	unsigned int		htc_hsic_dbg_enable:1;
+	#endif	
+	
+	
 #endif
 	struct pm_subsys_data	*subsys_data;  
 	struct pm_qos_constraints *constraints;
+
 };
 
 extern void update_pm_runtime_accounting(struct device *dev);

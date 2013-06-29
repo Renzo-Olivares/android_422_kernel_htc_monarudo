@@ -478,7 +478,7 @@ static int netlink_release(struct socket *sock)
 	struct sock *sk = sock->sk;
 	struct netlink_sock *nlk;
 
-	if (!sk)
+	if (IS_ERR(sk) || (!sk))
 		return 0;
 
 	netlink_remove(sk);

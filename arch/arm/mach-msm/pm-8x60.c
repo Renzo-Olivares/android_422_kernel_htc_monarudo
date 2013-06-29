@@ -124,18 +124,32 @@ module_param_named(
 );
 
 extern int board_mfg_mode(void);
-extern unsigned long acpuclk_8960_power_collapse(void);
+#ifdef CONFIG_APQ8064_ONLY 
+extern unsigned long acpuclk_krait_power_collapse(void);
+#endif
+#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
+extern int dlp_ext_buck_en(int);
+#endif
 #define CPU_FOOT_PRINT_MAGIC				0xACBDFE00
-#define CPU_FOOT_PRINT_BASE_CPU0_VIRT		(MSM_KERNEL_FOOTPRINT_BASE + 0x0)
+#define CPU_FOOT_PRINT_MAGIC_SPC			0xACBDAA00
+#define CPU_FOOT_PRINT_BASE_CPU0_VIRT		(CPU_FOOT_PRINT_BASE + 0x0)
+
+static void init_cpu_foot_print(unsigned cpu, bool notify_rpm)
+{
+	unsigned *status = (unsigned *)CPU_FOOT_PRINT_BASE_CPU0_VIRT + cpu;
+	*status = (notify_rpm) ? CPU_FOOT_PRINT_MAGIC : CPU_FOOT_PRINT_MAGIC_SPC;
+	mb();
+}
+
 static void set_cpu_foot_print(unsigned cpu, unsigned state)
 {
 	unsigned *status = (unsigned *)CPU_FOOT_PRINT_BASE_CPU0_VIRT + cpu;
-	*status = (CPU_FOOT_PRINT_MAGIC | state);
+	*(unsigned char *)status = (unsigned char)state;
 	mb();
 }
 
 #define RESET_VECTOR_CLEAN_MAGIC		0xDCBAABCD
-#define CPU_RESET_VECTOR_CPU0_BASE	(MSM_KERNEL_FOOTPRINT_BASE + 0x28)
+#define CPU_RESET_VECTOR_CPU0_BASE	(CPU_FOOT_PRINT_BASE + 0x28)
 static void clean_reset_vector_debug_info(unsigned cpu)
 {
 	unsigned *reset_vector = (unsigned *)CPU_RESET_VECTOR_CPU0_BASE;
@@ -143,7 +157,7 @@ static void clean_reset_vector_debug_info(unsigned cpu)
 	mb();
 }
 
-#define SAVE_MSM_PM_BOOT_ENTRY_BASE		(MSM_KERNEL_FOOTPRINT_BASE + 0x20)
+#define SAVE_MSM_PM_BOOT_ENTRY_BASE		(CPU_FOOT_PRINT_BASE + 0x20)
 static void store_pm_boot_entry_addr(void)
 {
 	unsigned *addr;
@@ -152,7 +166,7 @@ static void store_pm_boot_entry_addr(void)
 	mb();
 }
 
-#define SAVE_MSM_PM_BOOT_VECTOR_BASE			(MSM_KERNEL_FOOTPRINT_BASE + 0x24)
+#define SAVE_MSM_PM_BOOT_VECTOR_BASE			(CPU_FOOT_PRINT_BASE + 0x24)
 static void store_pm_boot_vector_addr(unsigned value)
 {
 	unsigned *addr;
@@ -445,6 +459,25 @@ void msm_pm_set_max_sleep_time(int64_t max_sleep_time_ns)
 }
 EXPORT_SYMBOL(msm_pm_set_max_sleep_time);
 
+static unsigned int *radio_info_addr;
+
+void msm_pm_radio_info_init(unsigned int *addr)
+{
+	radio_info_addr = addr;
+}
+EXPORT_SYMBOL(msm_pm_radio_info_init);
+
+void radio_stat_dump(void)
+{
+	int garbage = 0;
+	int syncack = 0;
+
+	if (radio_info_addr) {
+		garbage = *(radio_info_addr+0x30);
+		syncack = *(radio_info_addr+0x53);
+	}
+	printk(KERN_INFO "radio_info_stat: %d, %d\n", garbage, syncack);
+}
 
 
 static struct msm_rpmrs_limits *msm_pm_idle_rs_limits;
@@ -542,6 +575,8 @@ static bool __ref msm_pm_spm_power_collapse(
 		printk(KERN_INFO "suspend end at %d ticks\n", g_suspend_start_time);
 #endif
 	}
+
+	init_cpu_foot_print(cpu, notify_rpm);
 
 	collapsed = msm_pm_l2x0_power_collapse();
 
@@ -661,6 +696,9 @@ static bool msm_pm_power_collapse(bool from_idle)
 			msm_xo_print_voters_suspend();
 			msm_rpm_dump_stat();
 		}
+		if (!from_idle)
+			radio_stat_dump();
+
 	}
 
 	msm_pm_config_hw_before_power_down();
@@ -672,8 +710,9 @@ static bool msm_pm_power_collapse(bool from_idle)
 
 	if (cpu_online(cpu))
 		saved_acpuclk_rate = acpuclk_power_collapse();
-	else
-		saved_acpuclk_rate = acpuclk_8960_power_collapse();
+	else {
+		saved_acpuclk_rate = 0;
+	}
 
 	if ((!from_idle) && (MSM_PM_DEBUG_CLOCK & msm_pm_debug_mask))
 		pr_info("CPU%u: %s: change clock rate (old rate = %lu)\n",
@@ -684,7 +723,8 @@ static bool msm_pm_power_collapse(bool from_idle)
 	if (cpu_online(cpu)) {
 		if ((!from_idle) && (MSM_PM_DEBUG_RPM_STAT & msm_pm_debug_mask))
 			msm_rpm_dump_stat();
-
+		if (!from_idle)
+			radio_stat_dump();
 		if ((!from_idle) && (MSM_PM_DEBUG_CLOCK & msm_pm_debug_mask))
 			pr_info("CPU%u: %s: restore clock rate to %lu\n",
 				cpu, __func__, saved_acpuclk_rate);
@@ -784,7 +824,7 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 	uint32_t sleep_us;
 	int i;
 	unsigned int power_usage = -1;
-	int ret = 0;
+	int ret = MSM_PM_SLEEP_MODE_NOT_SELECTED;
 
 	latency_us = (uint32_t) pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
 	sleep_us = (uint32_t) ktime_to_ns(tick_nohz_get_sleep_length());
@@ -807,6 +847,7 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 
 		switch (mode) {
 		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE:
+		case MSM_PM_SLEEP_MODE_RETENTION:
 			if (!allow)
 				break;
 
@@ -814,13 +855,8 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 				allow = false;
 				break;
 			}
-
-			if (has_htc_idle_wakelock()) {
-				allow = false;
-				break;
-			}
-
 			
+
 		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE:
 			if (!allow)
 				break;
@@ -830,11 +866,6 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 				allow = false;
 				break;
 			}
-			
-
-		case MSM_PM_SLEEP_MODE_RETENTION:
-			if (!allow)
-				break;
 			
 
 		case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
@@ -934,6 +965,28 @@ int free_vreg_buffer(void)
 }
 EXPORT_SYMBOL(free_vreg_buffer);
 
+static char *pmic_reg_sleep_status_info;
+
+int print_pmic_reg_buffer(struct seq_file *m)
+{
+	if (pmic_reg_sleep_status_info)
+		seq_printf(m, pmic_reg_sleep_status_info);
+	else
+		seq_printf(m, "Device haven't suspended yet!\n");
+
+	return 0;
+}
+EXPORT_SYMBOL(print_pmic_reg_buffer);
+
+int free_pmic_reg_buffer(void)
+{
+	kfree(pmic_reg_sleep_status_info);
+	pmic_reg_sleep_status_info = NULL;
+
+	return 0;
+}
+EXPORT_SYMBOL(free_pmic_reg_buffer);
+
 int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
 {
 	int64_t time;
@@ -1008,15 +1061,21 @@ int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
 		break;
 	}
 
+	case MSM_PM_SLEEP_MODE_NOT_SELECTED:
+		goto cpuidle_enter_bail;
+		break;
+
 	default:
 		__WARN();
 		goto cpuidle_enter_bail;
+		break;
 	}
 
 	time = ktime_to_ns(ktime_get()) - time;
 	msm_pm_add_stat(exit_stat, time);
 	do_div(time, 1000);
-	if ((get_kernel_flag() & KERNEL_FLAG_PM_MONITOR) || !(get_kernel_flag() & KERNEL_FLAG_TEST_PWR_SUPPLY))
+	if ((get_kernel_flag() & KERNEL_FLAG_PM_MONITOR) ||
+		(!(get_kernel_flag() & KERNEL_FLAG_TEST_PWR_SUPPLY) && (!get_tamper_sf())))
 		htc_idle_stat_add(sleep_mode, (u32)time);
 
 	return (int) time;
@@ -1081,12 +1140,11 @@ void msm_pm_cpu_enter_lowpower(unsigned int cpu)
 		per_cpu(msm_pm_last_slp_mode, cpu)
 			= MSM_PM_SLEEP_MODE_RETENTION;
 		msm_pm_retention();
-	} else if (allow[MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT]) {
+	} else {
 		per_cpu(msm_pm_last_slp_mode, cpu)
 			= MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT;
 		msm_pm_swfi();
-	} else
-		per_cpu(msm_pm_last_slp_mode, cpu) = MSM_PM_SLEEP_MODE_NR;
+	}
 }
 
 int msm_pm_wait_cpu_shutdown(unsigned int cpu)
@@ -1124,6 +1182,9 @@ static int msm_pm_enter(suspend_state_t state)
 	uint64_t xo_shutdown_time, vdd_min_time;
 	int collapsed;
 
+#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
+	dlp_ext_buck_en(0);
+#endif
 	if (MSM_PM_DEBUG_SUSPEND & msm_pm_debug_mask)
 		pr_info("%s\n", __func__);
 
@@ -1164,6 +1225,24 @@ static int msm_pm_enter(suspend_state_t state)
 		}
 		curr_len = pmic_vreg_dump(vreg_sleep_status_info, curr_len);
 	}
+
+	
+	if (MSM_PM_DEBUG_VREG & msm_pm_debug_mask) {
+		curr_len = 0;
+		if (pmic_reg_sleep_status_info) {
+			memset(pmic_reg_sleep_status_info, 0,
+				sizeof(pmic_reg_sleep_status_info));
+		} else {
+			pmic_reg_sleep_status_info = kmalloc(75000, GFP_ATOMIC);
+			if (!pmic_reg_sleep_status_info) {
+				pr_err("kmalloc memory failed in %s\n",
+					__func__);
+
+			}
+		}
+		curr_len = pmic_suspend_reg_dump(pmic_reg_sleep_status_info, curr_len);
+	}
+	
 
 	if (smp_processor_id()) {
 		__WARN();
@@ -1280,6 +1359,10 @@ static int msm_pm_enter(suspend_state_t state)
 
 
 enter_exit:
+
+#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
+	dlp_ext_buck_en(1);
+#endif
 	if (MSM_PM_DEBUG_SUSPEND & msm_pm_debug_mask)
 		pr_info("%s: return\n", __func__);
 
@@ -1406,9 +1489,12 @@ static int __init msm_pm_init(void)
 
 	keep_dig_voltage_low_in_idle(true);
 
-	if(board_mfg_mode() == 6 || board_mfg_mode() == 8)
-		htc_idle_wake_lock();
+	if(board_mfg_mode() == 6 || board_mfg_mode() == 8) {
+		static struct pm_qos_request pm_qos_req_dma;
 
+		pm_qos_add_request(&pm_qos_req_dma,
+			PM_QOS_CPU_DMA_LATENCY, 100);
+	}
 
 	return 0;
 }

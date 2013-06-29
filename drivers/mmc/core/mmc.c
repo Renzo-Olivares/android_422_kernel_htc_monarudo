@@ -504,6 +504,33 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		strncpy(card->ext_csd.fwrev, buf, strlen(buf));
 	}
 
+	if (mmc_card_mmc(card)) {
+		char *buf;
+		int i, j;
+		ssize_t n = 0;
+		pr_info("%s: cid %08x%08x%08x%08x\n",
+			mmc_hostname(card->host),
+			card->raw_cid[0], card->raw_cid[1],
+			card->raw_cid[2], card->raw_cid[3]);
+		pr_info("%s: csd %08x%08x%08x%08x\n",
+			mmc_hostname(card->host),
+			card->raw_csd[0], card->raw_csd[1],
+			card->raw_csd[2], card->raw_csd[3]);
+
+		buf = kmalloc(512, GFP_KERNEL);
+		if (buf) {
+			for (i = 0; i < 32; i++) {
+				for (j = 511 - (16 * i); j >= 496 - (16 * i); j--)
+					n += sprintf(buf + n, "%02x", ext_csd[j]);
+				n += sprintf(buf + n, "\n");
+				pr_info("%s: ext_csd %s", mmc_hostname(card->host), buf);
+				n = 0;
+			}
+		}
+		if (buf)
+			kfree(buf);
+	}
+
 out:
 	return err;
 }
@@ -760,6 +787,22 @@ err:
 	return err;
 }
 
+#ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION
+extern unsigned int get_tamper_sf(void);
+static int mmc_get_write_protection(void)
+{
+	if (get_tamper_sf() == 1) {
+		set_mmc0_write_protection_type(1);
+		printk("mmc0_write_prot_type = 1\n");
+		if (get_mmc0_write_protection_type() == 1)
+			printk("[MMC] trigger software write protection\n");
+	} else {
+		set_mmc0_write_protection_type(0);
+	}
+	return 0;
+}
+#endif
+
 static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	struct mmc_card *oldcard)
 {
@@ -769,10 +812,8 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	unsigned int max_dtr;
 	u32 rocr;
 	u8 *ext_csd = NULL;
-#if 0
-	sector_t wp_prevention_start;
-	unsigned char WP_STATUS[512] = {0};
-	int wp_length = 0;
+#ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION
+	mmc_get_write_protection();
 #endif
 
 	BUG_ON(!host);
@@ -872,55 +913,6 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			mmc_card_set_blockaddr(card);
 	}
 
-#if 0
-	
-	
-	if (card->cid.manfid == 0x45)
-		wp_length = 512;
-	else
-		wp_length = 8;
-
-	err = mmc_set_block_length(card, wp_length);
-	if (err) {
-		pr_err("%s: set block length to %d fail\n", mmc_hostname(card->host), wp_length);
-		err = 0;
-	}
-#if defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8960) || defined(CONFIG_ARCH_MSM8930)
-	
-	wp_prevention_start = 262144;
-#elif defined(CONFIG_ARCH_MSM8X60)
-	
-	wp_prevention_start = 65536;
-#else
-	
-	wp_prevention_start = 163840;
-#endif
-
-	pr_info("%s: send write protection type at address %lu\n", mmc_hostname(card->host), (unsigned long) wp_prevention_start);
-	err = mmc_send_write_prot_type(card, WP_STATUS, wp_prevention_start, wp_length);
-
-	if (err) {
-		pr_err("%s: send write protection type at address %lu failed\n", mmc_hostname(card->host), (unsigned long) wp_prevention_start);
-		err = 0;
-	}
-
-	if (WP_STATUS[4] & 0xAA) {
-		pr_info("%s: trigger software write protection\n", mmc_hostname(card->host));
-		set_mmc0_write_protection_type(1);
-	} else {
-		pr_info("%s: disable software write protection\n", mmc_hostname(card->host));
-		set_mmc0_write_protection_type(0);
-	}
-
-	err = mmc_set_block_length(card, 512);
-
-	if (err) {
-		pr_err("%s: set block length to 512 fail\n", mmc_hostname(card->host));
-		err = 0;
-	}
-
-#endif
-
 	if (card->ext_csd.enhanced_area_en ||
 	    (card->ext_csd.rev >= 3 && (host->caps2 & MMC_CAP2_HC_ERASE_SZ))) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
@@ -940,7 +932,10 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			mmc_set_erase_size(card);
 		}
 	}
-	if (card->cid.manfid == 0x45) {
+	
+	if (card->ext_csd.rev >= 6)
+		card->wr_perf = 14;
+	else if (card->cid.manfid == 0x45) {
 		
 		if ((card->ext_csd.sectors == 31105024) && !strcmp(card->cid.prod_name, "SEM16G"))
 			card->wr_perf = 12;
@@ -967,6 +962,9 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			card->wr_perf = 11;
 		
 		else if ((card->ext_csd.sectors == 30535680) && !strcmp(card->cid.prod_name, "MAG2GA"))
+			card->wr_perf = 14;
+		
+		else if ((card->ext_csd.sectors == 61071360) && (card->cid.fwrev == 0x7))
 			card->wr_perf = 14;
 		
 		else if (card->ext_csd.sectors == 122142720)
@@ -1167,6 +1165,8 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			mmc_set_timing(card->host, MMC_TIMING_UHS_DDR50);
 			mmc_set_bus_width(card->host, bus_width);
 		}
+		pr_info("%s: switch to bus width %d\n", mmc_hostname(card->host),
+			1 << bus_width);
 	}
 
 	if (card->ext_csd.hpi) {

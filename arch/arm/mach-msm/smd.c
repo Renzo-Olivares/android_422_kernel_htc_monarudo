@@ -507,7 +507,7 @@ static inline void notify_wcnss_smsm(void)
 
 static void notify_other_smsm_ssr(uint32_t smsm_entry, uint32_t notify_mask, uint32_t kernel_flag)
 {
-	if ((kernel_flag == KERNEL_FLAG_ENABLE_SSR_MODEM) && (notify_mask & SMSM_RESET)) {
+	if ((kernel_flag == KERNEL_FLAG_ENABLE_SSR_MODEM)) {
 		if (!smsm_info.intr_mask ||
 				(__raw_readl(SMSM_INTR_MASK_ADDR(smsm_entry, SMSM_MODEM))
 				 & notify_mask)) {
@@ -631,6 +631,11 @@ void smd_diag(void)
 	}
 }
 
+int smd_smsm_erase_efs(void)
+{
+	unsigned modm = __raw_readl(SMSM_STATE_ADDR(SMSM_MODEM_STATE));
+	return (modm & SMSM_ERASE_EFS);
+}
 
 static void handle_modem_crash(void)
 {
@@ -3315,6 +3320,9 @@ smem_areas_alloc_fail:
 static int __devinit msm_smd_probe(struct platform_device *pdev)
 {
 	int ret;
+
+    
+    msm_smd_debug_mask |= MSM_SMD_INFO;
 
 	SMD_INFO("smd probe\n");
 	INIT_WORK(&probe_work, smd_channel_probe_worker);

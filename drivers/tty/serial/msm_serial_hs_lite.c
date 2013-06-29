@@ -1052,6 +1052,15 @@ static struct msm_hsl_port msm_hsl_uart_ports[] = {
 			.line = 3,
 		},
 	},
+	{
+		.uart = {
+			.iotype = UPIO_MEM,
+			.ops = &msm_hsl_uart_pops,
+			.flags = UPF_BOOT_AUTOCONF,
+			.fifosize = 64,
+			.line = 4,
+		},
+	},
 };
 
 #define UART_NR	ARRAY_SIZE(msm_hsl_uart_ports)
@@ -1107,7 +1116,9 @@ static void wait_for_xmitr(struct uart_port *port)
 	if (!(msm_hsl_read(port, regmap[vid][UARTDM_SR]) &
 			UARTDM_SR_TXEMT_BMSK)) {
 		while (!(msm_hsl_read(port, regmap[vid][UARTDM_ISR]) &
-			UARTDM_ISR_TX_READY_BMSK)) {
+			UARTDM_ISR_TX_READY_BMSK) &&
+		       !(msm_hsl_read(port, regmap[vid][UARTDM_SR]) &
+			UARTDM_SR_TXEMT_BMSK)) {
 			udelay(1);
 			touch_nmi_watchdog();
 			cpu_relax();

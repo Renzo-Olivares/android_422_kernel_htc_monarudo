@@ -2572,6 +2572,7 @@ void check_move_unevictable_pages(struct page **pages, int nr_pages)
 
 			VM_BUG_ON(PageActive(page));
 			ClearPageUnevictable(page);
+			BUG_ON(!zone);
 			__dec_zone_state(zone, NR_UNEVICTABLE);
 			lruvec = mem_cgroup_lru_move_lists(zone, page,
 						LRU_UNEVICTABLE, lru);

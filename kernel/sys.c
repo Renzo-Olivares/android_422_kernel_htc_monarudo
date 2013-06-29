@@ -384,6 +384,8 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	mutex_lock(&reboot_mutex);
 	switch (cmd) {
 	case LINUX_REBOOT_CMD_RESTART:
+		printk(KERN_EMERG "emergency_remount (LINUX_REBOOT_CMD_RESTART).\n");
+		emergency_remount();
 		kernel_restart(NULL);
 		break;
 
@@ -396,11 +398,15 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		break;
 
 	case LINUX_REBOOT_CMD_HALT:
+		printk(KERN_EMERG "emergency_remount (LINUX_REBOOT_CMD_HALT).\n");
+		emergency_remount();
 		kernel_halt();
 		do_exit(0);
 		panic("cannot halt");
 
 	case LINUX_REBOOT_CMD_POWER_OFF:
+		printk(KERN_EMERG "emergency_remount (LINUX_REBOOT_CMD_POWER_OFF).\n");
+		emergency_remount();
 		kernel_power_off();
 		do_exit(0);
 		break;
@@ -411,7 +417,10 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 			break;
 		}
 		buffer[sizeof(buffer) - 1] = '\0';
-
+		if (strlen(buffer) != 0 && strncmp(buffer, "oem-00", 6)) {
+			printk(KERN_EMERG "emergency_remount (LINUX_REBOOT_CMD_RESTART2).\n");
+			emergency_remount();
+		}
 		kernel_restart(buffer);
 		break;
 

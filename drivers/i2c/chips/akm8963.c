@@ -275,9 +275,7 @@ static int AKECS_SetMode(
 	case AK8963_MODE_FUSE_ACCESS:
 		err = AKECS_Set_CNTL1(akm, mode);
 		if ((err >= 0) && (akm->irq == 0)) {
-			schedule_delayed_work(
-				&akm->work,
-				usecs_to_jiffies(AK8963_MEASUREMENT_TIME_US));
+			
 		}
 		break;
 	case AK8963_MODE_POWERDOWN:
@@ -1235,18 +1233,11 @@ work_func_end:
 	return IRQ_HANDLED;
 }
 
-static void akm8963_delayed_work(struct work_struct *work)
-{
-	struct akm8963_data *akm = container_of(
-		work, struct akm8963_data, work.work);
-
-	akm8963_irq(akm->irq, akm);
-}
-
 #ifdef CONFIG_PM
 static int akm8963_suspend(struct i2c_client *client, pm_message_t mesg)
 {
-
+	if (s_akm && (s_akm->power_LPM))
+		s_akm->power_LPM(1);
 	return 0;
 }
 
@@ -1340,11 +1331,13 @@ int akm8963_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	
 	s_akm->irq = client->irq;
 
+#if 0
 	if (s_akm->irq == 0) {
 		dev_dbg(&client->dev, "%s: IRQ is not set.", __func__);
 		
-		INIT_DELAYED_WORK(&s_akm->work, akm8963_delayed_work);
+		
 	} else {
+#endif
 		err = request_threaded_irq(
 				s_akm->irq,
 				NULL,
@@ -1357,7 +1350,9 @@ int akm8963_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				"%s: request irq failed.", __func__);
 			goto exit4;
 		}
+#if 0
 	}
+#endif
 
 	
 	err = misc_register(&akm8963_dev);

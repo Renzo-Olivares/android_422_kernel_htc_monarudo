@@ -13,6 +13,17 @@
 #include <trace/events/rpm.h>
 #include "power.h"
 #include <linux/usb.h>
+#include <mach/board_htc.h>
+
+#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+extern struct device *mdm_usb1_1_dev;
+extern struct device *msm_hsic_host_dev;
+#endif	
+
+#if defined(CONFIG_ARCH_APQ8064) && defined(CONFIG_USB_EHCI_MSM_HSIC)
+extern int mdm_is_in_restart;
+#endif 
+
 static int rpm_resume(struct device *dev, int rpmflags);
 static int rpm_suspend(struct device *dev, int rpmflags);
 
@@ -137,6 +148,15 @@ static int rpm_idle(struct device *dev, int rpmflags)
 
 	trace_rpm_idle(dev, rpmflags);
 	retval = rpm_check_suspend_allowed(dev);
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+		dev_info(dev,"%s: rpm_check_suspend_allowed return %d\n", __func__, retval);
+	}
+	#endif	
+	
+	
 	if (retval < 0)
 		;	
 
@@ -169,6 +189,13 @@ static int rpm_idle(struct device *dev, int rpmflags)
 		if (!dev->power.request_pending) {
 			dev->power.request_pending = true;
 			queue_work(pm_wq, &dev->power.work);
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (msm_hsic_host_dev == dev && dev && dev->power.htc_hsic_dbg_enable) {
+				dev_info(dev," %s: queue work for msm_hsic_host suspend %d\n", __func__, retval);
+			}
+			#endif	
+			
 		}
 		goto out;
 	}
@@ -192,11 +219,29 @@ static int rpm_idle(struct device *dev, int rpmflags)
 	if (callback)
 		__rpm_callback(callback, dev);
 
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && dev->power.htc_hsic_dbg_enable && mdm_usb1_1_dev != dev)
+		dev_info(dev, "%s[%d] __rpm_callback(%x)\n", __func__, __LINE__, (unsigned int)callback);
+	#endif	
+	
+	
+
 	dev->power.idle_notification = false;
 	wake_up_all(&dev->power.wait_queue);
 
  out:
 	trace_rpm_return_int(dev, _THIS_IP_, retval);
+
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (msm_hsic_host_dev == dev && (get_radio_flag() & 0x0001)) {
+		dev_info(dev," %s: retval:%d\n", __func__, retval);
+	}
+	#endif	
+	
+
 	return retval;
 }
 
@@ -253,6 +298,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 	struct device *parent = NULL;
 	struct rpm_qos_data qos;
 	int retval;
+	int retval_parent_idle = 0;
 
 	trace_rpm_suspend(dev, rpmflags);
 
@@ -282,7 +328,7 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 			    dev->power.timer_expires, expires))) {
 			    
 #ifdef HTC_PM_DBG
-#ifdef CONFIG_ARCH_APQ8064				
+#if defined(CONFIG_ARCH_APQ8064) && defined(CONFIG_USB_EHCI_MSM_HSIC)
 				struct usb_device *udev = NULL;
 				extern struct usb_device *mdm_usb1_1_usbdev;
 				extern struct device *mdm_usb1_1_dev;
@@ -293,8 +339,9 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 				if (udev) {
 					if (!(udev->auto_suspend_timer_set)) {
 						udev->auto_suspend_timer_set = 1;
-					dev_info(dev, "%s[%d] dev->power.timer_expires=%lx, expires=%lx\n",
-						__func__, __LINE__, dev->power.timer_expires, expires);
+						if (dev && dev->power.htc_hsic_dbg_enable)
+							dev_info(dev, "%s[%d] dev->power.timer_expires=%lx, expires=%lx\n",
+								__func__, __LINE__, dev->power.timer_expires, expires);
 					}
 				}
 #endif
@@ -337,7 +384,25 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 
 			spin_unlock_irq(&dev->power.lock);
 
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (dev && dev->power.htc_hsic_dbg_enable)
+				dev_info(dev, "%s[%d] schedule+\n", __func__, __LINE__);
+			#endif	
+			
+			
+
 			schedule();
+
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (dev && dev->power.htc_hsic_dbg_enable)
+				dev_info(dev, "%s[%d] schedule-\n", __func__, __LINE__);
+			#endif	
+			
+			
 
 			spin_lock_irq(&dev->power.lock);
 		}
@@ -355,6 +420,16 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 		    RPM_REQ_AUTOSUSPEND : RPM_REQ_SUSPEND;
 		if (!dev->power.request_pending) {
 			dev->power.request_pending = true;
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] queue_work request:%x\n", __func__, __LINE__, dev->power.request);
+		#endif	
+		
+		
+
 			queue_work(pm_wq, &dev->power.work);
 		}
 		goto out;
@@ -368,6 +443,15 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 	}
 	qos.constraint_ns *= NSEC_PER_USEC;
 	qos.time_now = ktime_get();
+
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && dev->power.htc_hsic_dbg_enable && (get_radio_flag() & 0x0001))
+		dev_info(dev, "%s[%d] runtime_status RPM_SUSPENDING\n", __func__, __LINE__);
+	#endif	
+	
+	
 
 	__update_runtime_status(dev, RPM_SUSPENDING);
 
@@ -407,21 +491,71 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 		callback = dev->driver->pm->runtime_suspend;
 
 	retval = rpm_callback(callback, dev);
+
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && dev->power.htc_hsic_dbg_enable)
+		dev_info(dev, "%s[%d] rpm_callback(%x) retval:%d\n", __func__, __LINE__, (unsigned int)callback, retval);
+	#endif	
+	
+	
+
 	if (retval)
 		goto fail;
 
  no_callback:
 	__update_runtime_status(dev, RPM_SUSPENDED);
+
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && dev->power.htc_hsic_dbg_enable && (get_radio_flag() & 0x0001))
+		dev_info(dev, "%s[%d] runtime_status RPM_SUSPENDED\n", __func__, __LINE__);
+	#endif	
+	
+	
+
 	pm_runtime_deactivate_timer(dev);
 
 	if (dev->parent) {
 		parent = dev->parent;
 		atomic_add_unless(&parent->power.child_count, -1, 0);
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (parent && msm_hsic_host_dev == parent && (get_radio_flag() & 0x0001)) {
+			dev_info(parent, "%s[%d]child_count[%d]\n", __func__, __LINE__, atomic_read(&parent->power.child_count));
+		}
+		#endif	
+		
+		
 	}
 	wake_up_all(&dev->power.wait_queue);
 
 	if (dev->power.deferred_resume) {
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] rpm_resume+ deferred_resume:%d\n", __func__, __LINE__, dev->power.deferred_resume);
+		#endif	
+		
+		
+
 		rpm_resume(dev, 0);
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] rpm_resume- deferred_resume:%d\n", __func__, __LINE__, dev->power.deferred_resume);
+		#endif	
+		
+		
+
 		retval = -EAGAIN;
 		goto out;
 	}
@@ -431,11 +565,48 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 		spin_unlock(&dev->power.lock);
 
 		spin_lock(&parent->power.lock);
-		rpm_idle(parent, RPM_ASYNC);
+
+		retval_parent_idle = rpm_idle(parent, RPM_ASYNC);
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (msm_hsic_host_dev == parent) {
+			if (retval_parent_idle) {
+				dev_info(dev, "%s[%d] rpm_idle parent failed:%d\n", __func__, __LINE__, retval_parent_idle);
+				dev_info(parent, "%s[%d] runtime_error[%d] disable_depth[%d] usage_count[%d] child_count[%d]\n", __func__, __LINE__,
+					parent->power.runtime_error, parent->power.disable_depth, atomic_read(&parent->power.usage_count), atomic_read(&parent->power.child_count));
+				dev_info(parent, "%s[%d] deferred_resume[%d] runtime_status[%d] request_pending[%d] request[%d]\n", __func__, __LINE__,
+					parent->power.deferred_resume, parent->power.runtime_status, parent->power.request_pending, parent->power.request);
+			}
+		}
+		#endif	
+		
+		
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] rpm_idle parent ret:%d\n", __func__, __LINE__, retval_parent_idle);
+		#endif	
+		
+		
+
 		spin_unlock(&parent->power.lock);
 
 		spin_lock(&dev->power.lock);
 	}
+#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	else {
+		if (dev && dev->power.htc_hsic_dbg_enable) {
+			dev_info(dev, "%s[%d] parent:%x\n", __func__, __LINE__, (unsigned int)parent);
+			if (parent)
+				dev_info(parent, "%s[%d] ignore_children:%d\n", __func__, __LINE__, parent->power.ignore_children);
+			dev_info(dev, "%s[%d] irq_safe:%x\n", __func__, __LINE__, dev->power.irq_safe);
+		}
+	}
+#endif	
 
  out:
 	trace_rpm_return_int(dev, _THIS_IP_, retval);
@@ -443,6 +614,14 @@ static int rpm_suspend(struct device *dev, int rpmflags)
 	return retval;
 
  fail:
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && dev->power.htc_hsic_dbg_enable)
+		dev_info(dev, "%s[%d] runtime_status RPM_ACTIVE !!!\n", __func__, __LINE__);
+	#endif	
+	
+	
 	__update_runtime_status(dev, RPM_ACTIVE);
 	dev->power.suspend_time = ktime_set(0, 0);
 	dev->power.max_time_suspended_ns = -1;
@@ -467,6 +646,19 @@ static int rpm_resume(struct device *dev, int rpmflags)
 	int (*callback)(struct device *);
 	struct device *parent = NULL;
 	int retval = 0;
+	int log_enable = 0;
+
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (msm_hsic_host_dev == dev && (get_radio_flag() & 0x0001)) {
+		log_enable = 1;
+	}
+	#endif	
+	
+
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] rpmflags=[0x%x], runtime_error=[%d], disable_depth=[%d], timer_autosuspends=[%d], runtime_status=[%d], irq_safe=[%d]\n", __func__, __LINE__,
+		rpmflags, dev->power.runtime_error, dev->power.disable_depth, dev->power.timer_autosuspends, dev->power.runtime_status, dev->power.irq_safe);
 
 	trace_rpm_resume(dev, rpmflags);
 
@@ -490,51 +682,111 @@ static int rpm_resume(struct device *dev, int rpmflags)
 	if (dev->power.runtime_status == RPM_RESUMING
 	    || dev->power.runtime_status == RPM_SUSPENDING) {
 		DEFINE_WAIT(wait);
-
 		if (rpmflags & (RPM_ASYNC | RPM_NOWAIT)) {
-			if (dev->power.runtime_status == RPM_SUSPENDING)
+			if (dev->power.runtime_status == RPM_SUSPENDING) {
 				dev->power.deferred_resume = true;
-			else
+			} else {
 				retval = -EINPROGRESS;
+			}
 			goto out;
 		}
 
 		if (dev->power.irq_safe) {
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] spin_unlock\n", __func__, __LINE__);
 			spin_unlock(&dev->power.lock);
-
 			cpu_relax();
 
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] spin_lock+\n", __func__, __LINE__);
 			spin_lock(&dev->power.lock);
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] spin_lock-\n", __func__, __LINE__);
 			goto repeat;
 		}
 
 		
 		for (;;) {
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] prepare_to_wait+\n", __func__, __LINE__);
 			prepare_to_wait(&dev->power.wait_queue, &wait,
 					TASK_UNINTERRUPTIBLE);
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] prepare_to_wait-\n", __func__, __LINE__);
 			if (dev->power.runtime_status != RPM_RESUMING
-			    && dev->power.runtime_status != RPM_SUSPENDING)
+			    && dev->power.runtime_status != RPM_SUSPENDING) {
 				break;
+			}
 
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] spin_unlock_irq\n", __func__, __LINE__);
 			spin_unlock_irq(&dev->power.lock);
+
+
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (dev && dev->power.htc_hsic_dbg_enable)
+				dev_info(dev, "%s[%d] schedule+\n", __func__, __LINE__);
+			#endif	
+			
+			
 
 			schedule();
 
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (dev && dev->power.htc_hsic_dbg_enable)
+				dev_info(dev, "%s[%d] schedule-\n", __func__, __LINE__);
+			#endif	
+			
+			
+
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] spin_lock_irq+\n", __func__, __LINE__);
 			spin_lock_irq(&dev->power.lock);
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] spin_lock_irq-\n", __func__, __LINE__);
 		}
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] finish_wait+\n", __func__, __LINE__);
 		finish_wait(&dev->power.wait_queue, &wait);
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] finish_wait-\n", __func__, __LINE__);
 		goto repeat;
 	}
-
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] no_callbacks=[0x%x], parent=[0x%x], dev->parent=[0x%x]\n", __func__, __LINE__,
+		dev->power.no_callbacks, (uint)parent, (uint)dev->parent);
 	if (dev->power.no_callbacks && !parent && dev->parent) {
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_lock_nested+\n", __func__, __LINE__);
 		spin_lock_nested(&dev->parent->power.lock, SINGLE_DEPTH_NESTING);
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_lock_nested-\n", __func__, __LINE__);
 		if (dev->parent->power.disable_depth > 0
 		    || dev->parent->power.ignore_children
 		    || dev->parent->power.runtime_status == RPM_ACTIVE) {
 			atomic_inc(&dev->parent->power.child_count);
+
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (parent && msm_hsic_host_dev == parent && (get_radio_flag() & 0x0001)) {
+				dev_info(parent, "%s[%d]child_count[%d]\n", __func__, __LINE__, atomic_read(&parent->power.child_count));
+			}
+			#endif	
+			
+			
+
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] spin_unlock\n", __func__, __LINE__);
 			spin_unlock(&dev->parent->power.lock);
 			goto no_callback;	
 		}
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_unlock\n", __func__, __LINE__);
 		spin_unlock(&dev->parent->power.lock);
 	}
 
@@ -543,11 +795,29 @@ static int rpm_resume(struct device *dev, int rpmflags)
 		dev->power.request = RPM_REQ_RESUME;
 		if (!dev->power.request_pending) {
 			dev->power.request_pending = true;
+
 			if (!strncmp(dev_name(dev), "msm_hsic_host", 13)) {
-				pr_info("%s: RT PM work. %s \n", __FUNCTION__,dev_name(dev));
+				
+				
+				#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+				if (dev && dev->power.htc_hsic_dbg_enable)
+					pr_info("%s: RT PM work. %s(0x%x) \n", __FUNCTION__, dev_name(dev), (unsigned int)dev);
+				#endif	
+				
+				
+
+				
+				#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+				if (dev != msm_hsic_host_dev) {
+					pr_info("%s: dev(0x%x) msm_hsic_host_dev(0x%x) \n", __FUNCTION__, (unsigned int)dev, (unsigned int)msm_hsic_host_dev);
+				}
+				#endif	
+				
+
 				queue_work(pm_rt_wq, &dev->power.work);
-			} else
+			} else {
 				queue_work(pm_wq, &dev->power.work);
+			}
 		}
 		retval = 0;
 		goto out;
@@ -557,20 +827,41 @@ static int rpm_resume(struct device *dev, int rpmflags)
 		parent = dev->parent;
 		if (dev->power.irq_safe)
 			goto skip_parent;
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_unlock\n", __func__, __LINE__);
 		spin_unlock(&dev->power.lock);
 
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] pm_runtime_get_noresume+\n", __func__, __LINE__);
 		pm_runtime_get_noresume(parent);
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] pm_runtime_get_noresume-\n", __func__, __LINE__);
 
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_lock+\n", __func__, __LINE__);
 		spin_lock(&parent->power.lock);
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_lock-\n", __func__, __LINE__);
 		if (!parent->power.disable_depth
 		    && !parent->power.ignore_children) {
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] rpm_resume+\n", __func__, __LINE__);
 			rpm_resume(parent, 0);
+			if ( log_enable == 1 )
+				dev_info(dev, "%s[%d] rpm_resume-\n", __func__, __LINE__);
 			if (parent->power.runtime_status != RPM_ACTIVE)
 				retval = -EBUSY;
 		}
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_unlock\n", __func__, __LINE__);
 		spin_unlock(&parent->power.lock);
 
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_lock+\n", __func__, __LINE__);
 		spin_lock(&dev->power.lock);
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_lock-\n", __func__, __LINE__);
+
 		if (retval)
 			goto out;
 		goto repeat;
@@ -582,6 +873,15 @@ static int rpm_resume(struct device *dev, int rpmflags)
 
 	dev->power.suspend_time = ktime_set(0, 0);
 	dev->power.max_time_suspended_ns = -1;
+
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && dev->power.htc_hsic_dbg_enable && (get_radio_flag() & 0x0001))
+		dev_info(dev, "%s[%d] runtime_status RPM_RESUMING\n", __func__, __LINE__);
+	#endif	
+	
+	
 
 	__update_runtime_status(dev, RPM_RESUMING);
 
@@ -600,31 +900,87 @@ static int rpm_resume(struct device *dev, int rpmflags)
 		callback = dev->driver->pm->runtime_resume;
 
 	retval = rpm_callback(callback, dev);
+
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && dev->power.htc_hsic_dbg_enable)
+		dev_info(dev, "%s[%d] rpm_callback(%x) ret:%d\n", __func__, __LINE__, (unsigned int)callback, retval);
+	#endif	
+	
+	
+
 	if (retval) {
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] runtime_status RPM_SUSPENDED\n", __func__, __LINE__);
+		#endif	
+		
+		
+
 		__update_runtime_status(dev, RPM_SUSPENDED);
+
 		pm_runtime_cancel_pending(dev);
 	} else {
  no_callback:
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable && (get_radio_flag() & 0x0001))
+			dev_info(dev, "%s[%d] runtime_status RPM_ACTIVE\n", __func__, __LINE__);
+		#endif	
+		
+		
+
 		__update_runtime_status(dev, RPM_ACTIVE);
 		if (parent)
 			atomic_inc(&parent->power.child_count);
-	}
-	wake_up_all(&dev->power.wait_queue);
 
-	if (!retval)
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (parent && msm_hsic_host_dev == parent && (get_radio_flag() & 0x0001)) {
+			dev_info(parent, "%s[%d]child_count[%d]\n", __func__, __LINE__, atomic_read(&parent->power.child_count));
+		}
+		#endif	
+		
+		
+	}
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] wake_up_all+\n", __func__, __LINE__);
+	wake_up_all(&dev->power.wait_queue);
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] wake_up_all-\n", __func__, __LINE__);
+	if (!retval) {
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] rpm_idle+\n", __func__, __LINE__);
 		rpm_idle(dev, RPM_ASYNC);
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] rpm_idle-\n", __func__, __LINE__);
+	}
 
  out:
 	if (parent && !dev->power.irq_safe) {
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_unlock_irq\n", __func__, __LINE__);
 		spin_unlock_irq(&dev->power.lock);
 
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] pm_runtime_put+\n", __func__, __LINE__);
 		pm_runtime_put(parent);
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] pm_runtime_put-\n", __func__, __LINE__);
 
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_lock_irq+\n", __func__, __LINE__);
 		spin_lock_irq(&dev->power.lock);
+		if ( log_enable == 1 )
+			dev_info(dev, "%s[%d] spin_lock_irq-\n", __func__, __LINE__);
 	}
 
 	trace_rpm_return_int(dev, _THIS_IP_, retval);
-
 	return retval;
 }
 
@@ -632,12 +988,23 @@ static void pm_runtime_work(struct work_struct *work)
 {
 	struct device *dev = container_of(work, struct device, power.work);
 	enum rpm_request req;
+	int log_enable = 0;
 
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (msm_hsic_host_dev == dev && (get_radio_flag() & 0x0001)) {
+		log_enable = 1;
+	}
+	#endif	
+	
+
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] request=[%d], request_pending=[%d]\n", __func__, __LINE__, dev->power.request, dev->power.request_pending);
 	spin_lock_irq(&dev->power.lock);
-
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] spin_lock_irq+\n", __func__, __LINE__);
 	if (!dev->power.request_pending)
 		goto out;
-
 	req = dev->power.request;
 	dev->power.request = RPM_REQ_NONE;
 	dev->power.request_pending = false;
@@ -646,21 +1013,91 @@ static void pm_runtime_work(struct work_struct *work)
 	case RPM_REQ_NONE:
 		break;
 	case RPM_REQ_IDLE:
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable && mdm_usb1_1_dev != dev)
+			dev_info(dev, "%s[%d] RPM_REQ_IDLE rpm_idle+\n", __func__, __LINE__);
+		#endif	
+		
+		
 		rpm_idle(dev, RPM_NOWAIT);
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable && mdm_usb1_1_dev != dev)
+			dev_info(dev, "%s[%d] RPM_REQ_IDLE rpm_idle-\n", __func__, __LINE__);
+		#endif	
+		
+		
 		break;
 	case RPM_REQ_SUSPEND:
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] RPM_REQ_SUSPEND rpm_suspend+\n", __func__, __LINE__);
+		#endif	
+		
+		
+
 		rpm_suspend(dev, RPM_NOWAIT);
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] RPM_REQ_SUSPEND rpm_suspend-\n", __func__, __LINE__);
+		#endif	
+		
+		
 		break;
 	case RPM_REQ_AUTOSUSPEND:
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] RPM_REQ_AUTOSUSPEND rpm_suspend+\n", __func__, __LINE__);
+		#endif	
+		
+		
+
 		rpm_suspend(dev, RPM_NOWAIT | RPM_AUTO);
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] RPM_REQ_AUTOSUSPEND rpm_suspend-\n", __func__, __LINE__);
+		#endif	
+		
+		
 		break;
 	case RPM_REQ_RESUME:
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] RPM_REQ_RESUME rpm_resume+\n", __func__, __LINE__);
+		#endif	
+		
+		
 		rpm_resume(dev, RPM_NOWAIT);
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable)
+			dev_info(dev, "%s[%d] RPM_REQ_RESUME rpm_resume-\n", __func__, __LINE__);
+		#endif	
+		
+		
 		break;
 	}
 
  out:
 	spin_unlock_irq(&dev->power.lock);
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] spin_lock_irq-\n", __func__, __LINE__);
 }
 
 static void pm_suspend_timer_fn(unsigned long data)
@@ -676,8 +1113,28 @@ static void pm_suspend_timer_fn(unsigned long data)
 	
 	if (expires > 0 && !time_after(expires, jiffies)) {
 		dev->power.timer_expires = 0;
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable && (get_radio_flag() & 0x1))
+			dev_info(dev, "%s[%d] rpm_suspend+\n", __func__, __LINE__);
+		#endif	
+		
+		
+
 		rpm_suspend(dev, dev->power.timer_autosuspends ?
 		    (RPM_ASYNC | RPM_AUTO) : RPM_ASYNC);
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && dev->power.htc_hsic_dbg_enable && (get_radio_flag() & 0x1))
+			dev_info(dev, "%s[%d] rpm_suspend-\n", __func__, __LINE__);
+		#endif	
+		
+		
+
 	}
 
 	spin_unlock_irqrestore(&dev->power.lock, flags);
@@ -722,8 +1179,31 @@ int __pm_runtime_idle(struct device *dev, int rpmflags)
 	might_sleep_if(!(rpmflags & RPM_ASYNC) && !dev->power.irq_safe);
 
 	if (rpmflags & RPM_GET_PUT) {
-		if (!atomic_dec_and_test(&dev->power.usage_count))
+		if (!atomic_dec_and_test(&dev->power.usage_count)) {
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+				dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+					atomic_read(&dev->power.usage_count));
+			}
+			#endif	
+			
+			
+
 			return 0;
+		}
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+			dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+				atomic_read(&dev->power.usage_count));
+		}
+		#endif	
+		
+		
 	}
 
 	spin_lock_irqsave(&dev->power.lock, flags);
@@ -742,8 +1222,30 @@ int __pm_runtime_suspend(struct device *dev, int rpmflags)
 	might_sleep_if(!(rpmflags & RPM_ASYNC) && !dev->power.irq_safe);
 
 	if (rpmflags & RPM_GET_PUT) {
-		if (!atomic_dec_and_test(&dev->power.usage_count))
+		if (!atomic_dec_and_test(&dev->power.usage_count)) {
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+				dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+					atomic_read(&dev->power.usage_count));
+			}
+			#endif	
+			
+			
 			return 0;
+		}
+
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+			dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+				atomic_read(&dev->power.usage_count));
+		}
+		#endif	
+		
+		
 	}
 
 	spin_lock_irqsave(&dev->power.lock, flags);
@@ -758,15 +1260,47 @@ int __pm_runtime_resume(struct device *dev, int rpmflags)
 {
 	unsigned long flags;
 	int retval;
+	int log_enable = 0;
+
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (msm_hsic_host_dev == dev && (get_radio_flag() & 0x0001)) {
+		log_enable = 1;
+	}
+	#endif	
+	
+
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] rpmflags=[%d], power.irq_safe=[%d], might_sleep_if=[%d]\n", __func__, __LINE__, rpmflags, dev->power.irq_safe, (!(rpmflags & RPM_ASYNC) && !dev->power.irq_safe));
 
 	might_sleep_if(!(rpmflags & RPM_ASYNC) && !dev->power.irq_safe);
 
-	if (rpmflags & RPM_GET_PUT)
+	if (rpmflags & RPM_GET_PUT) {
 		atomic_inc(&dev->power.usage_count);
 
+		
+		
+		#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+		if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+			dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+				atomic_read(&dev->power.usage_count));
+		}
+		#endif	
+		
+		
+	}
+
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] spin_lock_irqsave+\n", __func__, __LINE__);
 	spin_lock_irqsave(&dev->power.lock, flags);
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] rpm_resume+\n", __func__, __LINE__);
 	retval = rpm_resume(dev, rpmflags);
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] rpm_resume-\n", __func__, __LINE__);
 	spin_unlock_irqrestore(&dev->power.lock, flags);
+	if ( log_enable == 1 )
+		dev_info(dev, "%s[%d] spin_lock_irqsave-\n", __func__, __LINE__);
 
 	return retval;
 }
@@ -796,6 +1330,17 @@ int __pm_runtime_set_status(struct device *dev, unsigned int status)
 		
 		if (parent) {
 			atomic_add_unless(&parent->power.child_count, -1, 0);
+
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (parent && msm_hsic_host_dev == parent && (get_radio_flag() & 0x0001)) {
+				dev_info(parent, "%s[%d]child_count[%d]\n", __func__, __LINE__, atomic_read(&parent->power.child_count));
+			}
+			#endif	
+			
+			
+
 			notify_parent = !parent->power.ignore_children;
 		}
 		goto out_set;
@@ -808,8 +1353,19 @@ int __pm_runtime_set_status(struct device *dev, unsigned int status)
 		    && !parent->power.ignore_children
 		    && parent->power.runtime_status != RPM_ACTIVE)
 			error = -EBUSY;
-		else if (dev->power.runtime_status == RPM_SUSPENDED)
+		else if (dev->power.runtime_status == RPM_SUSPENDED) {
 			atomic_inc(&parent->power.child_count);
+
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (parent && msm_hsic_host_dev == parent && (get_radio_flag() & 0x0001)) {
+				dev_info(parent, "%s[%d]child_count[%d]\n", __func__, __LINE__, atomic_read(&parent->power.child_count));
+			}
+			#endif	
+			
+			
+		}
 
 		spin_unlock(&parent->power.lock);
 
@@ -818,6 +1374,14 @@ int __pm_runtime_set_status(struct device *dev, unsigned int status)
 	}
 
  out_set:
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && dev->power.htc_hsic_dbg_enable && (get_radio_flag() & 0x0001))
+		dev_info(dev, "%s[%d] runtime_status %d\n", __func__, __LINE__, status);
+	#endif	
+	
+	
 	__update_runtime_status(dev, status);
 	dev->power.runtime_error = 0;
  out:
@@ -938,6 +1502,18 @@ void pm_runtime_forbid(struct device *dev)
 
 	dev->power.runtime_auto = false;
 	atomic_inc(&dev->power.usage_count);
+
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+		dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+			atomic_read(&dev->power.usage_count));
+	}
+	#endif	
+	
+	
+
 	rpm_resume(dev, 0);
 
  out:
@@ -954,6 +1530,17 @@ void pm_runtime_allow(struct device *dev)
 	dev->power.runtime_auto = true;
 	if (atomic_dec_and_test(&dev->power.usage_count))
 		rpm_idle(dev, RPM_AUTO);
+
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+		dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+			atomic_read(&dev->power.usage_count));
+	}
+	#endif	
+	
+	
 
  out:
 	spin_unlock_irq(&dev->power.lock);
@@ -990,6 +1577,18 @@ static void update_autosuspend(struct device *dev, int old_delay, int old_use)
 		
 		if (!old_use || old_delay >= 0) {
 			atomic_inc(&dev->power.usage_count);
+
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+				dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+					atomic_read(&dev->power.usage_count));
+			}
+			#endif	
+			
+			
+
 			rpm_resume(dev, 0);
 		}
 	}
@@ -998,8 +1597,20 @@ static void update_autosuspend(struct device *dev, int old_delay, int old_use)
 	else {
 
 		
-		if (old_use && old_delay < 0)
+		if (old_use && old_delay < 0) {
 			atomic_dec(&dev->power.usage_count);
+
+			
+			
+			#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+			if (dev && msm_hsic_host_dev == dev && (mdm_is_in_restart || (get_radio_flag() & 0x0001))) {
+				dev_info(dev, "%s[%d] usage_count[%d]\n", __func__, __LINE__,
+					atomic_read(&dev->power.usage_count));
+			}
+			#endif	
+			
+			
+		}
 
 		
 		rpm_idle(dev, RPM_AUTO);
@@ -1060,6 +1671,14 @@ void pm_runtime_init(struct device *dev)
 	dev->power.max_time_suspended_ns = -1;
 
 	init_waitqueue_head(&dev->power.wait_queue);
+
+	
+	
+	#if defined(CONFIG_USB_EHCI_MSM_HSIC)
+	dev->power.htc_hsic_dbg_enable = 0;
+	#endif	
+	
+	
 }
 
 void pm_runtime_remove(struct device *dev)

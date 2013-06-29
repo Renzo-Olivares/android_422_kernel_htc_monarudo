@@ -497,8 +497,12 @@ static struct cpu_workqueue_struct *get_work_cwq(struct work_struct *work)
 
 	if (data & WORK_STRUCT_CWQ)
 		return (void *)(data & WORK_STRUCT_WQ_DATA_MASK);
-	else
+	else {
+		pr_err("%s: return NULL (work = 0x%p, work->entry = 0x%p, work->data = %lu work->function = %pF)\n"
+			, __func__, (void *)work, (void *)&work->entry, data, (void*)work->func);
+		WARN_ON(1);
 		return NULL;
+	}
 }
 
 static struct global_cwq *get_work_gcwq(struct work_struct *work)
@@ -687,7 +691,7 @@ static inline struct list_head *gcwq_determine_ins_pos(struct global_cwq *gcwq,
 	list_for_each_entry(twork, &gcwq->worklist, entry) {
 		struct cpu_workqueue_struct *tcwq = get_work_cwq(twork);
 
-		if (!(tcwq->wq->flags & WQ_HIGHPRI))
+		if (tcwq && !(tcwq->wq->flags & WQ_HIGHPRI))
 			break;
 	}
 
@@ -835,7 +839,10 @@ static void delayed_work_timer_fn(unsigned long __data)
 	struct delayed_work *dwork = (struct delayed_work *)__data;
 	struct cpu_workqueue_struct *cwq = get_work_cwq(&dwork->work);
 
-	__queue_work(smp_processor_id(), cwq->wq, &dwork->work);
+	if (unlikely(cwq == NULL)) {
+		return;
+	} else
+		__queue_work(smp_processor_id(), cwq->wq, &dwork->work);
 }
 
 int queue_delayed_work(struct workqueue_struct *wq,
@@ -2611,6 +2618,21 @@ unsigned long get_work_func_of_task_struct(struct task_struct *tsk)
 	}
 	return 0;
 }
+
+void show_pending_work_on_gcwq(void)
+{
+	struct work_struct *work;
+	unsigned int cpu;
+
+	for_each_gcwq_cpu(cpu) {
+		struct global_cwq *gcwq = get_gcwq(cpu);
+
+		list_for_each_entry(work, &gcwq->worklist, entry) {
+			printk("CPU%d pending work : %pf\n", cpu, work->func);
+		}
+	}
+}
+EXPORT_SYMBOL(show_pending_work_on_gcwq);
 
 static int __init init_workqueues(void)
 {
