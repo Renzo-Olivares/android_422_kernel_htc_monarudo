@@ -2742,34 +2742,10 @@ static int mdp4_calc_pipe_mdp_clk(struct msm_fb_data_type *mfd,
 		return ret;
 	}
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-	if (pipe->mixer_num == MDP4_MIXER0) {
-		if (pipe->blt_forced)
-			return 0;
-
-		ptype = mdp4_overlay_format2type(pipe->src_format);
-		if (ptype == OVERLAY_TYPE_VIDEO) {
-			if ((pipe->src_h >= 720) && (pipe->src_w >= 1080))  {
-				pipe->req_clk = (u32) mdp_max_clk + 100; 
-				pipe->blt_forced++;
-				return 0;
-			} else if ((pipe->src_h >= 1080) && (pipe->src_w >= 720))  {
-				pipe->req_clk = (u32) mdp_max_clk + 100; 
-				pipe->blt_forced++;
-				return 0;
-			}
-		}
-	}
-
-=======
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 	/*
 	 * For the scaling cases, make more margin by removing porch
 	 * values and adding extra 20%.
 	 */
->>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 	if ((pipe->src_h != pipe->dst_h) ||
 	    (pipe->src_w != pipe->dst_w)) {
 		hsync = mfd->panel_info.xres;
@@ -3425,14 +3401,6 @@ int mdp4_overlay_unset(struct fb_info *info, int ndx)
 		return 0;
 	}
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-	mixer = pipe->mixer_num;
-
->>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
-=======
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
 	if (pipe->mixer_num == MDP4_MIXER2)
 		ctrl->mixer2_played = 0;
 	else if (pipe->mixer_num == MDP4_MIXER1)

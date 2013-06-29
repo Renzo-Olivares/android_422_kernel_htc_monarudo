@@ -568,13 +568,9 @@ static ssize_t mipi_dsi_3d_barrier_read(struct device *dev,
 				)
 
 {
-<<<<<<< HEAD
-	return snprintf((char *)buf, sizeof(buf), "%u\n", barrier_mode);
-=======
 	return snprintf((char *)buf, sizeof(*buf), "%u\n", barrier_mode);
 	
 
->>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 }
 
 static ssize_t mipi_dsi_3d_barrier_write(struct device *dev,

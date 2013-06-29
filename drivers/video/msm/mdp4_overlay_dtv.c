@@ -1199,23 +1199,8 @@ void mdp4_dtv_overlay(struct msm_fb_data_type *mfd)
 		mdp4_dtv_pipe_queue(0, pipe);
 	}
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-	mutex_lock(&mfd->dma->ov_mutex);
-	if (mdp4_dtv_pipe_commit())
-		mdp4_dtv_wait4dmae(0);
-=======
-=======
-	if (hdmi_prim_display)
-		wait = 1;
-
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
-=======
->>>>>>> a1f39f7... kgsl and video/msm from msm8960 2.5 branch
 	mdp4_overlay_mdp_perf_upd(mfd, 1);
 	mdp4_dtv_pipe_commit(0, 1);
 	mdp4_overlay_mdp_perf_upd(mfd, 0);
->>>>>>> 7d0a17e... Copied caf 2.5.1 video/gpu genlock and rotator [WIP]
 	mutex_unlock(&mfd->dma->ov_mutex);
 }

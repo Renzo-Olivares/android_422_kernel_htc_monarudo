@@ -1,12 +1,4 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 ifeq ($(CONFIG_FB_MSM_MDSS),y)
-=======
-ifeq ($(CONFIG_FB_MSM_MDSS_COMMON),y)
->>>>>>> 422e24f... msm-3.4 (commit 35cca8ba3ee0e6a2085dbcac48fb2ccbaa72ba98) video/gpu/iommu .. and all the hacks that goes with that
-=======
-ifeq ($(CONFIG_FB_MSM_MDSS),y)
->>>>>>> a1f39f7... kgsl and video/msm from msm8960 2.5 branch
 obj-y += mdss/
 else
 obj-y := msm_fb.o
