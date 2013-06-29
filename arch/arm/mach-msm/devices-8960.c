@@ -2756,25 +2756,8 @@ static struct msm_dcvs_freq_entry grp3d_freq[] = {
 };
 
 static struct msm_dcvs_freq_entry grp2d_freq[] = {
-<<<<<<< HEAD
-	{0, 0, 86000},
-	{0, 0, 200000},
-};
-
-static struct msm_dcvs_core_info grp3d_core_info = {
-	.freq_tbl = &grp3d_freq[0],
-	.core_param = {
-		.max_time_us = 100000,
-		.num_freq = ARRAY_SIZE(grp3d_freq),
-	},
-	.algo_param = {
-		.slack_time_us = 39000,
-		.disable_pc_threshold = 86000,
-		.ss_window_size = 1000000,
-		.ss_util_pct = 95,
-		.em_max_util_pct = 97,
-		.ss_iobusy_conv = 100,
-	},
+        {0, 900, 0, 0, 0},
+        {0, 950, 1, 100, 100},
 };
 
 static struct msm_dcvs_core_info grp2d_core_info = {
@@ -2790,9 +2773,6 @@ static struct msm_dcvs_core_info grp2d_core_info = {
 		.ss_util_pct = 90,
 		.em_max_util_pct = 95,
 	},
-=======
-	{0, 900, 0, 0, 0},
-	{0, 950, 1, 100, 100},
 };
 
 static struct msm_dcvs_core_info grp3d_core_info = {
@@ -2830,7 +2810,6 @@ static struct msm_dcvs_core_info grp3d_core_info = {
 		.current_temp	= 25,
 		.num_freq	= ARRAY_SIZE(grp3d_freq),
 	}
->>>>>>> 7ede355... final import of CAF drivers still have to cleanup
 };
 
 static struct msm_dcvs_core_info grp2d_core_info = {
@@ -2985,10 +2964,7 @@ static struct msm_bus_paths grp2d0_bus_scale_usecases[] = {
 		grp2d0_max_vectors,
 	},
 };
-<<<<<<< HEAD
 
-=======
->>>>>>> 7ede355... final import of CAF drivers still have to cleanup
 struct msm_bus_scale_pdata grp2d0_bus_scale_pdata = {
 	grp2d0_bus_scale_usecases,
 	ARRAY_SIZE(grp2d0_bus_scale_usecases),
