@@ -2760,21 +2760,6 @@ static struct msm_dcvs_freq_entry grp2d_freq[] = {
         {0, 950, 1, 100, 100},
 };
 
-static struct msm_dcvs_core_info grp2d_core_info = {
-	.freq_tbl = &grp2d_freq[0],
-	.core_param = {
-		.max_time_us = 100000,
-		.num_freq = ARRAY_SIZE(grp2d_freq),
-	},
-	.algo_param = {
-		.slack_time_us = 39000,
-		.disable_pc_threshold = 90000,
-		.ss_window_size = 1000000,
-		.ss_util_pct = 90,
-		.em_max_util_pct = 95,
-	},
-};
-
 static struct msm_dcvs_core_info grp3d_core_info = {
 	.freq_tbl	= &grp3d_freq[0],
 	.core_param	= {
