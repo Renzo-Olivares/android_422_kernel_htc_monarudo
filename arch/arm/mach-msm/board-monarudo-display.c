@@ -537,7 +537,7 @@ struct mdp_reg mdp_gamma[] = {
 
 int monarudo_mdp_gamma(void)
 {
-	mdp_color_enhancement(mdp_gamma, ARRAY_SIZE(mdp_gamma));
+	//mdp_color_enhancement(mdp_gamma, ARRAY_SIZE(mdp_gamma));
 	return 0;
 }
 
@@ -773,7 +773,7 @@ static char gamma_setting_blue[25]= {
 	0x74};
 #endif
 
-static char Color_enhancement[33]= {
+/*static char Color_enhancement[33]= {
 	0xCA, 0x01, 0x02, 0xA4,
 	0xA4, 0xB8, 0xB4, 0xB0,
 	0xA4, 0x3F, 0x28, 0x05,
@@ -782,7 +782,7 @@ static char Color_enhancement[33]= {
 	0x0C, 0x0C, 0x0C, 0x13,
 	0x13, 0xF0, 0x20, 0x10,
 	0x10, 0x10, 0x10, 0x10,
-	0x10};
+	0x10};*/
 
 
 static char BackLight_Control_6[8]= {
@@ -801,7 +801,7 @@ static struct dsi_cmd_desc sharp_video_on_cmds[] = {
 	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(nop), nop},
 	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(nop), nop},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Manufacture_Command_setting), Manufacture_Command_setting},
-	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Color_enhancement), Color_enhancement},
+	//{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Color_enhancement), Color_enhancement},
 	
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(BackLight_Control_6), BackLight_Control_6},
 	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(write_control_display), write_control_display},
@@ -816,7 +816,7 @@ static struct dsi_cmd_desc sony_video_on_cmds[] = {
 	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(nop), nop},
 	{DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(nop), nop},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(hsync_output), hsync_output},
-	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Color_enhancement), Color_enhancement},
+	//{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Color_enhancement), Color_enhancement},
 	
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(BackLight_Control_6), BackLight_Control_6},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(Manufacture_Command_setting), Manufacture_Command_setting},
