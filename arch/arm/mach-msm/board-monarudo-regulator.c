@@ -581,5 +581,7 @@ struct rpm_regulator_platform_data monarudo_rpm_regulator_pdata __devinitdata = 
 	.version		  = RPM_VREG_VERSION_8960,
 	.vreg_id_vdd_mem	  = RPM_VREG_ID_PM8921_L24,
 	.vreg_id_vdd_dig	  = RPM_VREG_ID_PM8921_S3,
+	.consumer_map		  = msm_rpm_regulator_consumer_mapping,
+	.consumer_map_len = ARRAY_SIZE(msm_rpm_regulator_consumer_mapping),
 	.requires_tcxo_workaround = true
 };
