@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,10 +13,11 @@
 
 #include <linux/init.h>
 #include <linux/platform_device.h>
-#include <linux/msm_kgsl.h>
+#include <mach/kgsl.h>
 #include <mach/msm_bus_board.h>
 #include <mach/board.h>
 #include <mach/msm_dcvs.h>
+#include <mach/socinfo.h>
 
 #include "devices.h"
 #include "board-monarudo.h"
@@ -168,25 +169,25 @@ static struct resource kgsl_3d0_resources[] = {
 };
 
 static const struct kgsl_iommu_ctx kgsl_3d0_iommu0_ctxs[] = {
-       { "gfx3d_user", 0 },
-       { "gfx3d_priv", 1 },
+	{ "gfx3d_user", 0 },
+	{ "gfx3d_priv", 1 },
 };
 
 static const struct kgsl_iommu_ctx kgsl_3d0_iommu1_ctxs[] = {
-       { "gfx3d1_user", 0 },
-       { "gfx3d1_priv", 1 },
+	{ "gfx3d1_user", 0 },
+	{ "gfx3d1_priv", 1 },
 };
 
 static struct kgsl_device_iommu_data kgsl_3d0_iommu_data[] = {
 	{
-                .iommu_ctxs = kgsl_3d0_iommu0_ctxs,
-                .iommu_ctx_count = ARRAY_SIZE(kgsl_3d0_iommu0_ctxs),
+		.iommu_ctxs = kgsl_3d0_iommu0_ctxs,
+		.iommu_ctx_count = ARRAY_SIZE(kgsl_3d0_iommu0_ctxs),
 		.physstart = 0x07C00000,
 		.physend = 0x07C00000 + SZ_1M - 1,
 	},
 	{
-                .iommu_ctxs = kgsl_3d0_iommu1_ctxs,
-                .iommu_ctx_count = ARRAY_SIZE(kgsl_3d0_iommu1_ctxs),
+		.iommu_ctxs = kgsl_3d0_iommu1_ctxs,
+		.iommu_ctx_count = ARRAY_SIZE(kgsl_3d0_iommu1_ctxs),
 		.physstart = 0x07D00000,
 		.physend = 0x07D00000 + SZ_1M - 1,
 	},
@@ -200,7 +201,7 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 			.io_fraction = 0,
 		},
 		{
-			.gpu_freq = 325000000,
+			.gpu_freq = 320000000,
 			.bus_freq = 3,
 			.io_fraction = 33,
 		},
@@ -231,7 +232,7 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 #endif
 };
 
-static struct platform_device device_kgsl_3d0 = {
+struct platform_device device_kgsl_3d0 = {
 	.name = "kgsl-3d0",
 	.id = 0,
 	.num_resources = ARRAY_SIZE(kgsl_3d0_resources),
@@ -243,5 +244,19 @@ static struct platform_device device_kgsl_3d0 = {
 
 void __init monarudo_init_gpu(void)
 {
+	unsigned int version = socinfo_get_version();
+
+	if (cpu_is_apq8064ab())
+		kgsl_3d0_pdata.pwrlevel[0].gpu_freq = 450000000;
+	if (SOCINFO_VERSION_MAJOR(version) == 2) {
+		kgsl_3d0_pdata.chipid = ADRENO_CHIPID(3, 2, 0, 2);
+	} else {
+		if ((SOCINFO_VERSION_MAJOR(version) == 1) &&
+				(SOCINFO_VERSION_MINOR(version) == 1))
+			kgsl_3d0_pdata.chipid = ADRENO_CHIPID(3, 2, 0, 1);
+		else
+			kgsl_3d0_pdata.chipid = ADRENO_CHIPID(3, 2, 0, 0);
+	}
+
 	platform_device_register(&device_kgsl_3d0);
 }

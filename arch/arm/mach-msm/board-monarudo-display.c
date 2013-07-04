@@ -562,6 +562,29 @@ static struct msm_panel_common_pdata mdp_pdata = {
 	.mdp_max_clk = 200000000,
 };
 
+static char wfd_check_mdp_iommu_split_domain(void)
+{
+    return mdp_pdata.mdp_iommu_split_domain;
+}
+
+#ifdef CONFIG_FB_MSM_WRITEBACK_MSM_PANEL
+static struct msm_wfd_platform_data wfd_pdata = {
+    .wfd_check_mdp_iommu_split = wfd_check_mdp_iommu_split_domain,
+};
+
+static struct platform_device wfd_panel_device = {
+    .name = "wfd_panel",
+    .id = 0,
+    .dev.platform_data = NULL,
+};
+
+static struct platform_device wfd_device = {
+    .name          = "msm_wfd",
+    .id            = -1,
+    .dev.platform_data = &wfd_pdata,
+};
+#endif
+
 void __init monarudo_mdp_writeback(struct memtype_reserve* reserve_table)
 {
 	mdp_pdata.ov0_wb_size = MSM_FB_OVERLAY0_WRITEBACK_SIZE;
@@ -574,9 +597,12 @@ void __init monarudo_mdp_writeback(struct memtype_reserve* reserve_table)
 #endif
 }
 static int first_init = 1;
-static bool dsi_power_on;
+uint32_t cfg_panel_te_active[] = {GPIO_CFG(LCD_TE, 1, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA)};
+uint32_t cfg_panel_te_sleep[] = {GPIO_CFG(LCD_TE, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA)};
+
 static int mipi_dsi_panel_power(int on)
 {
+	static bool dsi_power_on = false;
 	static struct regulator *reg_lvs5, *reg_l2;
 	static int gpio36, gpio37;
 	int rc;
