@@ -22,10 +22,134 @@
 #include <asm/mach-types.h>
 #include <asm/setup.h>
 #include <linux/mfd/pm8xxx/pm8921.h>
+#include <mach/htc_4335_wl_reg.h>
 
 #include <mach/msm_xo.h>
 
 #include "board-monarudo.h"
+
+#include <linux/miscdevice.h>
+#include <asm/uaccess.h>
+
+#define BTLOCK_NAME     "btlock"
+#define BTLOCK_MINOR    MISC_DYNAMIC_MINOR 
+
+#define BTLOCK_TIMEOUT	2
+
+#define PR(msg, ...) printk("####"msg, ##__VA_ARGS__)
+
+struct btlock {
+	int lock;
+	int cookie;
+};
+
+static struct semaphore btlock;
+static int count = 1;
+static int owner_cookie = -1;
+
+int bcm_bt_lock(int cookie)
+{
+	int ret;
+	char cookie_msg[5] = {0};
+
+	ret = down_timeout(&btlock, msecs_to_jiffies(BTLOCK_TIMEOUT*1000));
+	if (ret == 0) {
+		memcpy(cookie_msg, &cookie, sizeof(cookie));
+		owner_cookie = cookie;
+		count--;
+		PR("btlock acquired cookie: %s\n", cookie_msg);
+	}
+
+	return ret;
+}
+
+void bcm_bt_unlock(int cookie)
+{
+	char owner_msg[5] = {0};
+	char cookie_msg[5] = {0};
+
+	memcpy(cookie_msg, &cookie, sizeof(cookie));
+	if (owner_cookie == cookie) {
+		owner_cookie = -1;
+		if (count++ > 1)
+			PR("error, release a lock that was not acquired**\n");
+		up(&btlock);
+		PR("btlock released, cookie: %s\n", cookie_msg);
+	} else {
+		memcpy(owner_msg, &owner_cookie, sizeof(owner_cookie));
+		PR("ignore lock release,  cookie mismatch: %s owner %s \n", cookie_msg, 
+				owner_cookie == 0 ? "NULL" : owner_msg);
+	}
+}
+
+static int btlock_open(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static int btlock_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static ssize_t btlock_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
+{
+	struct btlock lock_para;
+	ssize_t ret = 0;
+
+	if (count < sizeof(struct btlock))
+		return -EINVAL;
+
+	if (copy_from_user(&lock_para, buffer, sizeof(struct btlock))) {
+		return -EFAULT;
+	}
+
+	if (lock_para.lock == 0) {
+		bcm_bt_unlock(lock_para.cookie);	
+	} else if (lock_para.lock == 1) {
+		ret = bcm_bt_lock(lock_para.cookie);	
+	} else if (lock_para.lock == 2) {
+		ret = bcm_bt_lock(lock_para.cookie);	
+	}
+
+	return ret;
+}
+
+static const struct file_operations btlock_fops = {
+	.owner   = THIS_MODULE,
+	.open    = btlock_open,
+	.release = btlock_release,
+	.write   = btlock_write,
+};
+
+static struct miscdevice btlock_misc = {
+	.name  = BTLOCK_NAME,
+	.minor = BTLOCK_MINOR,
+	.fops  = &btlock_fops,
+};
+
+static int bcm_btlock_init(void)
+{
+	int ret;
+
+	PR("init\n");
+
+	ret = misc_register(&btlock_misc);
+	if (ret != 0) {
+		PR("Error: failed to register Misc driver,  ret = %d\n", ret);
+		return ret;
+	}
+	sema_init(&btlock, 1);
+
+	return ret;
+}
+
+static void bcm_btlock_exit(void)
+{
+	PR("btlock_exit:\n");
+
+	misc_deregister(&btlock_misc);
+}
 
 static struct rfkill *bt_rfk;
 static const char bt_name[] = "bcm4334";
@@ -142,16 +266,18 @@ static void monarudo_GPIO_config_bt_on(void)
 {
 	printk(KERN_INFO "[BT]== R ON ==\n");
 
-	if(system_rev == XC)
-	{
-		msm_xo_mode_vote(xo_handle, MSM_XO_MODE_ON);
-		pr_info("[BT] %s: msm_xo_mode_vote MSM_XO_MODE_ON\n", __func__);
-	}
 	
 	config_bt_table(monarudo_GPIO_bt_on_table,
 				ARRAY_SIZE(monarudo_GPIO_bt_on_table));
 	mdelay(2);
 
+	if (system_rev < XC) {
+		printk(KERN_INFO "[BT]XA XB\n");
+		
+		htc_BCM4335_wl_reg_ctl(BCM4335_WL_REG_ON, ID_BT);
+		
+		mdelay(5);
+	}
 
 	
 	gpio_set_value(PM8921_GPIO_PM_TO_SYS(BT_REG_ON_XC), 0);
@@ -170,6 +296,11 @@ static void monarudo_GPIO_config_bt_on(void)
 
 static void monarudo_GPIO_config_bt_off(void)
 {
+	if (system_rev < XC) {
+		
+		htc_BCM4335_wl_reg_ctl(BCM4335_WL_REG_OFF, ID_BT);
+		mdelay(5);
+	}
 
 	
 	gpio_set_value(PM8921_GPIO_PM_TO_SYS(BT_REG_ON_XC), 0);
@@ -197,11 +328,6 @@ static void monarudo_GPIO_config_bt_off(void)
 	gpio_set_value(PM8921_GPIO_PM_TO_SYS(BT_WAKE_XC), 0); 
 
 	printk(KERN_INFO "[BT]== R OFF ==\n");
-	if(system_rev == XC)
-	{
-		msm_xo_mode_vote(xo_handle, MSM_XO_MODE_OFF);
-		pr_info("[BT] %s: msm_xo_mode_vote MSM_XO_MODE_OFF\n",	__func__);
-	}
 }
 
 static int bluetooth_set_power(void *data, bool blocked)
@@ -232,9 +358,11 @@ static int monarudo_rfkill_probe(struct platform_device *pdev)
 		rc = pm8xxx_gpio_config(monarudo_bt_pmic_gpio_xc[i].gpio,
 					&monarudo_bt_pmic_gpio_xc[i].config);
 		if (rc)
-			pr_info("[BT] %s: Config ERROR: GPIO=%u, rc=%d\n",
+			pr_info("[bt] %s: Config ERROR: GPIO=%u, rc=%d\n",
 				__func__, monarudo_bt_pmic_gpio_xc[i].gpio, rc);
 	}
+
+	bcm_btlock_init();
 
 	bluetooth_set_power(NULL, default_state);
 
@@ -265,6 +393,9 @@ static int monarudo_rfkill_remove(struct platform_device *dev)
 {
 	rfkill_unregister(bt_rfk);
 	rfkill_destroy(bt_rfk);
+
+	bcm_btlock_exit();
+
 	return 0;
 }
 

@@ -25,10 +25,10 @@
 #include <mach/gpio.h>
 #include <mach/gpiomux.h>
 #include "devices.h"
-#include "board-monarudo.h"
+#include "board-m7.h"
 #include "board-storage-common-a.h"
-#include <mach/htc_4335_wl_reg.h>  
-
+#include "Board-storage-common-htc.h"
+#include <mach/htc_4335_wl_reg.h>   
 
 enum sdcc_controllers {
 	SDCC1,
@@ -95,8 +95,8 @@ static struct msm_mmc_slot_reg_data mmc_slot_vreg_data[MAX_SDCC_CONTROLLER] = {
 
 static struct msm_mmc_pad_drv sdc1_pad_drv_on_cfg[] = {
 	{TLMM_HDRV_SDC1_CLK, GPIO_CFG_4MA},
-	{TLMM_HDRV_SDC1_CMD, GPIO_CFG_10MA},
-	{TLMM_HDRV_SDC1_DATA, GPIO_CFG_10MA}
+	{TLMM_HDRV_SDC1_CMD, GPIO_CFG_6MA},
+	{TLMM_HDRV_SDC1_DATA, GPIO_CFG_6MA}
 };
 
 static struct msm_mmc_pad_drv sdc1_pad_drv_off_cfg[] = {
@@ -195,7 +195,7 @@ static unsigned int sdc1_sup_clk_rates[] = {
 	400000, 24000000, 48000000, 96000000
 };
 
-static unsigned int dlx_sdc1_slot_type = MMC_TYPE_MMC;
+static unsigned int dlxj_sdc1_slot_type = MMC_TYPE_MMC;
 static struct mmc_platform_data sdc1_data = {
 	.ocr_mask       = MMC_VDD_27_28 | MMC_VDD_28_29,
 #ifdef CONFIG_MMC_MSM_SDC1_8_BIT_SUPPORT
@@ -205,7 +205,7 @@ static struct mmc_platform_data sdc1_data = {
 #endif
 	.sup_clk_table	= sdc1_sup_clk_rates,
 	.sup_clk_cnt	= ARRAY_SIZE(sdc1_sup_clk_rates),
-	.slot_type      = &dlx_sdc1_slot_type,
+	.slot_type      = &dlxj_sdc1_slot_type,
 	.pin_data	= &mmc_slot_pin_data[SDCC1],
 	.vreg_data	= &mmc_slot_vreg_data[SDCC1],
 	.nonremovable   = 1,
@@ -215,9 +215,9 @@ static struct mmc_platform_data sdc1_data = {
 	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
 	.bkops_support = 1,
 };
-static struct mmc_platform_data *monarudo_sdc1_pdata = &sdc1_data;
+static struct mmc_platform_data *m7_sdc1_pdata = &sdc1_data;
 #else
-static struct mmc_platform_data *monarudo_sdc1_pdata;
+static struct mmc_platform_data *m7_sdc1_pdata;
 #endif
 
 #if 0
@@ -243,9 +243,9 @@ static struct mmc_platform_data sdc3_data = {
 			MMC_CAP_UHS_SDR104 | MMC_CAP_MAX_CURRENT_800),
 	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
 };
-static struct mmc_platform_data *monarudo_sdc3_pdata = &sdc3_data;
+static struct mmc_platform_data *m7_sdc3_pdata = &sdc3_data;
 #else
-static struct mmc_platform_data *monarudo_sdc3_pdata;
+static struct mmc_platform_data *m7_sdc3_pdata;
 #endif
 #endif
 
@@ -272,31 +272,31 @@ struct pm8xxx_gpio_init {
 };
 
 static struct pm8xxx_gpio_init wifi_on_gpio_table[] = {
-	PM8XXX_GPIO_INIT(WL_HOST_WAKE_XC, PM_GPIO_DIR_IN,
+	PM8XXX_GPIO_INIT(WL_HOST_WAKE, PM_GPIO_DIR_IN,
 					 PM_GPIO_OUT_BUF_CMOS, 0, PM_GPIO_PULL_NO,
 					 PM_GPIO_VIN_S4, PM_GPIO_STRENGTH_LOW,
 					 PM_GPIO_FUNC_NORMAL, 0, 0),
 };
 
 static struct pm8xxx_gpio_init wifi_off_gpio_table[] = {
-	PM8XXX_GPIO_INIT(WL_HOST_WAKE_XC, PM_GPIO_DIR_IN,
+	PM8XXX_GPIO_INIT(WL_HOST_WAKE, PM_GPIO_DIR_IN,
 					 PM_GPIO_OUT_BUF_CMOS, 0, PM_GPIO_PULL_DN,
 					 PM_GPIO_VIN_S4, PM_GPIO_STRENGTH_LOW,
 					 PM_GPIO_FUNC_NORMAL, 0, 0),
 };
 
 static struct pm8xxx_gpio_init wl_reg_on_gpio =
-	PM8XXX_GPIO_INIT(WL_REG_ON_XC, PM_GPIO_DIR_OUT,
+	PM8XXX_GPIO_INIT(WL_REG_ON, PM_GPIO_DIR_OUT,
 					 PM_GPIO_OUT_BUF_CMOS, 0, PM_GPIO_PULL_NO,
 					 PM_GPIO_VIN_S4, PM_GPIO_STRENGTH_LOW,
 					 PM_GPIO_FUNC_NORMAL, 0, 0);
-
+#if 0
 static struct pm8xxx_gpio_init wl_dev_wake_gpio =
-	PM8XXX_GPIO_INIT(WL_DEV_WAKE_XC, PM_GPIO_DIR_OUT,
+	PM8XXX_GPIO_INIT(WL_DEV_WAKE, PM_GPIO_DIR_OUT,
 					 PM_GPIO_OUT_BUF_CMOS, 0, PM_GPIO_PULL_NO,
 					 PM_GPIO_VIN_S4, PM_GPIO_STRENGTH_LOW,
 					 PM_GPIO_FUNC_NORMAL, 0, 0);
-
+#endif
 static void config_gpio_table(struct pm8xxx_gpio_init *table, int len)
 {
 	int n, rc;
@@ -309,7 +309,7 @@ static void config_gpio_table(struct pm8xxx_gpio_init *table, int len)
 	}
 }
 
-static struct embedded_sdio_data monarudo_wifi_emb_data = {
+static struct embedded_sdio_data m7_wifi_emb_data = {
 	.cccr	= {
 		.sdio_vsn	= 2,
 		.multi_block	= 1,
@@ -324,7 +324,7 @@ static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_devid;
 
 static int
-monarudo_wifi_status_register(void (*callback)(int card_present, void *dev_id),
+m7_wifi_status_register(void (*callback)(int card_present, void *dev_id),
 				void *dev_id)
 {
 	if (wifi_status_cb)
@@ -335,44 +335,45 @@ monarudo_wifi_status_register(void (*callback)(int card_present, void *dev_id),
 	return 0;
 }
 
-static int monarudo_wifi_cd;	
+static int m7_wifi_cd;	
 
-static unsigned int monarudo_wifi_status(struct device *dev)
+static unsigned int m7_wifi_status(struct device *dev)
 {
-	return monarudo_wifi_cd;
+	return m7_wifi_cd;
 }
 
-static unsigned int monarudo_wifislot_type = MMC_TYPE_SDIO_WIFI;
+static unsigned int m7_wifislot_type = MMC_TYPE_SDIO_WIFI;
 static unsigned int wifi_sup_clk_rates[] = {
-	400000, 24000000, 48000000
+	400000, 24000000, 48000000, 96000000, 192000000
 };
-static struct mmc_platform_data monarudo_wifi_data = {
+static struct mmc_platform_data m7_wifi_data = {
 	.ocr_mask               = MMC_VDD_28_29,
-	.status                 = monarudo_wifi_status,
-	.register_status_notify = monarudo_wifi_status_register,
-	.embedded_sdio          = &monarudo_wifi_emb_data,
+	.status                 = m7_wifi_status,
+	.register_status_notify = m7_wifi_status_register,
+	.embedded_sdio          = &m7_wifi_emb_data,
 	.mmc_bus_width  = MMC_CAP_4_BIT_DATA,
-	.slot_type = &monarudo_wifislot_type,
-	.sup_clk_table	= wifi_sup_clk_rates,
-	.sup_clk_cnt	= ARRAY_SIZE(wifi_sup_clk_rates),
-	.uhs_caps	= (MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 |
-			MMC_CAP_UHS_SDR50),
-	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
+	.slot_type = &m7_wifislot_type,
+	.sup_clk_table = wifi_sup_clk_rates,
+	.sup_clk_cnt = ARRAY_SIZE(wifi_sup_clk_rates),
+	.uhs_caps = (MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 |
+	             MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_DDR50 |
+	             MMC_CAP_UHS_SDR104 | MMC_CAP_MAX_CURRENT_800),
+	.msm_bus_voting_data = &wifi_sps_to_ddr_bus_voting_data,
 	.nonremovable   = 0,
 };
 
 
-int monarudo_wifi_set_carddetect(int val)
+int m7_wifi_set_carddetect(int val)
 {
 	printk(KERN_INFO "%s: %d\n", __func__, val);
-	monarudo_wifi_cd = val;
+	m7_wifi_cd = val;
 	if (wifi_status_cb)
 		wifi_status_cb(val, wifi_status_cb_devid);
 	else
 		printk(KERN_WARNING "%s: Nobody to notify\n", __func__);
 	return 0;
 }
-EXPORT_SYMBOL(monarudo_wifi_set_carddetect);
+EXPORT_SYMBOL(m7_wifi_set_carddetect);
 
 #define BIT_HDRIV_PULL_NO      0
 #define BIT_HDRIV_PULL_DOWN    1
@@ -412,7 +413,7 @@ extern int bcm_bt_lock(int cookie);
 extern void bcm_bt_unlock(int cookie);
 #endif 
 
-int monarudo_wifi_power(int on)
+int m7_wifi_power(int on)
 {
 	const unsigned SDC3_HDRV_PULL_CTL_ADDR = (unsigned) MSM_TLMM_BASE + 0x20A4;
 
@@ -466,9 +467,9 @@ int monarudo_wifi_power(int on)
 #endif
 	return 0;
 }
-EXPORT_SYMBOL(monarudo_wifi_power);
+EXPORT_SYMBOL(m7_wifi_power);
 
-int monarudo_wifi_reset(int on)
+int m7_wifi_reset(int on)
 {
 	printk(KERN_INFO "%s: do nothing\n", __func__);
 	return 0;
@@ -505,25 +506,26 @@ static int reg_set_l7_optimum_mode(void)
 }
 #endif
 
-extern uint32_t msm_rpm_get_swfi_latency(void);
-
-void __init monarudo_init_mmc(void)
+void __init m7_init_mmc(void)
 {
 	wifi_status_cb = NULL;
 
-	printk(KERN_INFO "monarudo: %s\n", __func__);
+	printk(KERN_INFO "m7: %s\n", __func__);
 
 	
 	wl_reg_on_gpio.config.output_value = 0;
 	pm8xxx_gpio_config(wl_reg_on_gpio.gpio, &wl_reg_on_gpio.config);
 
+#if 0
 	wl_dev_wake_gpio.config.output_value = 0;
 	pm8xxx_gpio_config(wl_dev_wake_gpio.gpio, &wl_dev_wake_gpio.config);
-
+#endif
+#if 0
 	
-	monarudo_wifi_data.cpu_dma_latency = msm_rpm_get_swfi_latency();
+    m7_wifi_data.swfi_latency = msm_rpm_get_swfi_latency();
+#endif
 
-	apq8064_add_sdcc(1, monarudo_sdc1_pdata);
-	apq8064_add_sdcc(3, &monarudo_wifi_data);
+	apq8064_add_sdcc(1, m7_sdc1_pdata);
+	apq8064_add_sdcc(3, &m7_wifi_data);
 	
 }
