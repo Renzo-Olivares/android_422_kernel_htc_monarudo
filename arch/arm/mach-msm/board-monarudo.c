@@ -3537,40 +3537,6 @@ static struct msm_spm_seq_entry msm_spm_seq_list[] __initdata = {
 	},
 };
 
-#ifdef CONFIG_PERFLOCK
-static unsigned dlx_perf_acpu_table[] = {
-	594000000, 
-	810000000, 
-	1026000000, 
-	1134000000,
-	1512000000, 
-};
-
-static struct perflock_data dlx_floor_data = {
-	.perf_acpu_table = dlx_perf_acpu_table,
-	.table_size = ARRAY_SIZE(dlx_perf_acpu_table),
-};
-
-static struct perflock_data dlx_cpufreq_ceiling_data = {
-	.perf_acpu_table = dlx_perf_acpu_table,
-	.table_size = ARRAY_SIZE(dlx_perf_acpu_table),
-};
-
-static struct perflock_pdata perflock_pdata = {
-	.perf_floor = &dlx_floor_data,
-	.perf_ceiling = &dlx_cpufreq_ceiling_data,
-};
-
-struct platform_device msm8064_device_perf_lock = {
-	.name = "perf_lock",
-	.id = -1,
-	.dev = {
-		.platform_data = &perflock_pdata,
-	},
-};
-
-#endif
-
 static uint8_t l2_spm_wfi_cmd_sequence[] __initdata = {
 	0x00, 0x20, 0x03, 0x20,
 	0x00, 0x0f,
