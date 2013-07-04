@@ -85,6 +85,7 @@
 #ifdef CONFIG_BT
 #include <mach/msm_serial_hs.h>
 #include <mach/htc_bdaddress.h>
+#include <mach/htc_4335_wl_reg.h>
 #endif
 
 #include <mach/msm_watchdog.h>
@@ -4693,6 +4694,15 @@ static void __init monarudo_common_init(void)
 		gpio_tlmm_config(ac_reset_xc_gpio_table[0], GPIO_CFG_ENABLE);
 		gpio_set_value(AC_WDT_RST_XC, 1);
 	}
+#endif
+
+#ifdef CONFIG_BT
+	
+	htc_BCM4335_wl_reg_init(WL_REG_ON_XC); 
+	bt_export_bd_address();
+	msm_uart_dm6_pdata.wakeup_irq = PM8921_GPIO_IRQ(PM8921_IRQ_BASE, BT_HOST_WAKE_XC);
+	msm_device_uart_dm6.name = "msm_serial_hs_brcm";
+	msm_device_uart_dm6.dev.platform_data = &msm_uart_dm6_pdata;
 #endif
 
 	
