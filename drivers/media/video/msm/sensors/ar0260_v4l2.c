@@ -3,12 +3,6 @@
 #define PLATFORM_DRIVER_NAME "msm_camera_ar0260"
 #define ar0260_obj ar0260_##obj
 
-#ifdef CONFIG_RAWCHIPII
-#include "yushanII.h"
-#include "ilp0100_ST_api.h"
-#include "ilp0100_customer_sensor_config.h"
-#endif
-
 #define USE_MCLK_780MHZ 1
 
 DEFINE_MUTEX(ar0260_mut);
@@ -30,18 +24,8 @@ static struct msm_camera_i2c_reg_conf ar0260_start_settings[] = {
 #endif
 };
 
-static struct msm_camera_i2c_reg_conf ar0260_start_settings_yushanii[] = {
-	{0x301C, 0x0102,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_WRITE},
-	{0x3C40, 0xAC34,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_WRITE},
-};
-
 static struct msm_camera_i2c_reg_conf ar0260_stop_settings[] = {
 	{0x301C, 0,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_WRITE},
-};
-
-static struct msm_camera_i2c_reg_conf ar0260_stop_settings_yushanii[] = {
-	{0x301C, 0x0002,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_WRITE},
-	{0x3C40, 0xAC36,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_WRITE},
 };
 
 static struct msm_camera_i2c_reg_conf ar0260_groupon_settings[] = {
@@ -366,346 +350,18 @@ static struct msm_camera_i2c_reg_conf ar0260_recommend_settings[] = {
 { 0x3C40, 0xAC34},	
 {0x301C, 0x0102},
 {0xffff,50},
-#ifndef CONFIG_RAWCHIPII
 { 0x3C40, 0xAC36},	
 {0x301C, 0x0},
-#else
-{0xffff,200},
-{0x3C40, 0xAC36},
-{0x301C, 0x0002},
-
-{0xffff,300},
-{0x3C40, 0xAC34},
-{0x301C, 0x0102},
-
-#endif
 
 };
 
-static struct msm_camera_i2c_reg_conf ar0260_recommend_settings_yushanii[] = {
-
-{0x0018, 0,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_POLL_EQUAL,0x4000},
-
-{ 0x001A, 0x0005}, 	
-{ 0x001C, 0x000C}, 	
-{ 0x001A, 0x0014}, 	
-{0x001C, 6<<8,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_POLL_NOT_EQUAL,0xFF00},
-
-
-{ 0x0982, 0x0001}, 	
-{ 0x098A, 0x6000}, 	
-{ 0xE000, 0xC0F1},
-{ 0xE002, 0x0C72},
-{ 0xE004, 0x0760},
-{ 0xE006, 0xD81D},
-{ 0xE008, 0x0ABA},
-{ 0xE00A, 0x0780},
-{ 0xE00C, 0xE080},
-{ 0xE00E, 0x0064},
-{ 0xE010, 0x0001},
-{ 0xE012, 0x0916},
-{ 0xE014, 0x0860},
-{ 0xE016, 0xD802},
-{ 0xE018, 0xD900},
-{ 0xE01A, 0x70CF},
-{ 0xE01C, 0xFF00},
-{ 0xE01E, 0x31B0},
-{ 0xE020, 0xB038},
-{ 0xE022, 0x1CFC},
-{ 0xE024, 0xB388},
-{ 0xE026, 0x76CF},
-{ 0xE028, 0xFF00},
-{ 0xE02A, 0x33CC},
-{ 0xE02C, 0x200A},
-{ 0xE02E, 0x0F80},
-{ 0xE030, 0xFFFF},
-{ 0xE032, 0xE048},
-{ 0xE034, 0x1CFC},
-{ 0xE036, 0xB008},
-{ 0xE038, 0x2022},
-{ 0xE03A, 0x0F80},
-{ 0xE03C, 0x0000},
-{ 0xE03E, 0xFC3C},
-{ 0xE040, 0x2020},
-{ 0xE042, 0x0F80},
-{ 0xE044, 0x0000},
-{ 0xE046, 0xEA34},
-{ 0xE048, 0x1404},
-{ 0xE04A, 0x340E},
-{ 0xE04C, 0xD801},
-{ 0xE04E, 0x71CF},
-{ 0xE050, 0xFF00},
-{ 0xE052, 0x33CC},
-{ 0xE054, 0x190A},
-{ 0xE056, 0x801C},
-{ 0xE058, 0x208A},
-{ 0xE05A, 0x0004},
-{ 0xE05C, 0x1964},
-{ 0xE05E, 0x8004},
-{ 0xE060, 0x0C12},
-{ 0xE062, 0x0760},
-{ 0xE064, 0xD83C},
-{ 0xE066, 0x0E5E},
-{ 0xE068, 0x0880},
-{ 0xE06A, 0x216F},
-{ 0xE06C, 0x003F},
-{ 0xE06E, 0xF1FD},
-{ 0xE070, 0x0C02},
-{ 0xE072, 0x0760},
-{ 0xE074, 0xD81E},
-{ 0xE076, 0xC0D1},
-{ 0xE078, 0x7EE0},
-{ 0xE07A, 0x78E0},
-{ 0xE07C, 0xC0F1},
-{ 0xE07E, 0xE889},
-{ 0xE080, 0x70CF},
-{ 0xE082, 0xFF00},
-{ 0xE084, 0x0000},
-{ 0xE086, 0x900E},
-{ 0xE088, 0xB8E7},
-{ 0xE08A, 0x0F78},
-{ 0xE08C, 0xFFC1},
-{ 0xE08E, 0xD800},
-{ 0xE090, 0xF1F3},
-
-{ 0x098E, 0x0000}, 	
-{ 0x098A, 0x5F38}, 	
-{ 0x0990, 0xFFFF},
-{ 0x0992, 0xE07C},
-
-{ 0x001C, 0x0600}, 	
-
-	{0x001C, 0x3C<<8,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_POLL_LESS,0xFF00},
-
-	
-
-{ 0x3E00, 0x042D}, 	
-{ 0x3E02, 0x39FF}, 	
-{ 0x3E04, 0x49FF}, 	
-{ 0x3E06, 0xFFFF}, 	
-{ 0x3E08, 0x8071}, 	
-{ 0x3E0A, 0x7211}, 	
-{ 0x3E0C, 0xE040}, 	
-{ 0x3E0E, 0xA840}, 	
-{ 0x3E10, 0x4100}, 	
-{ 0x3E12, 0x1846}, 	
-{ 0x3E14, 0xA547}, 	
-{ 0x3E16, 0xAD57}, 	
-{ 0x3E18, 0x8149}, 	
-{ 0x3E1A, 0x9D49}, 	
-{ 0x3E1C, 0x9F46}, 	
-{ 0x3E1E, 0x8000}, 	
-{ 0x3E20, 0x1842}, 	
-{ 0x3E22, 0x4180}, 	
-{ 0x3E24, 0x0018}, 	
-{ 0x3E26, 0x8149}, 	
-{ 0x3E28, 0x9C49}, 	
-{ 0x3E2A, 0x9347}, 	
-{ 0x3E2C, 0x804D}, 	
-{ 0x3E2E, 0x804A}, 	
-{ 0x3E30, 0x100C}, 	
-{ 0x3E32, 0x8000}, 	
-{ 0x3E34, 0x1841}, 	
-{ 0x3E36, 0x4280}, 	
-{ 0x3E38, 0x0018}, 	
-{ 0x3E3A, 0x9710}, 	
-{ 0x3E3C, 0x0C80}, 	
-{ 0x3E3E, 0x4DA2}, 	
-{ 0x3E40, 0x4BA0}, 	
-{ 0x3E42, 0x4A00}, 	
-{ 0x3E44, 0x1880}, 	
-{ 0x3E46, 0x4241}, 	
-{ 0x3E48, 0x0018}, 	
-{ 0x3E4A, 0xB54B}, 	
-{ 0x3E4C, 0x1C00}, 	
-{ 0x3E4E, 0x8000}, 	
-{ 0x3E50, 0x1C10}, 	
-{ 0x3E52, 0x6081}, 	
-{ 0x3E54, 0x1580}, 	
-{ 0x3E56, 0x7C09}, 	
-{ 0x3E58, 0x7000}, 	
-{ 0x3E5A, 0x8082}, 	
-{ 0x3E5C, 0x7281}, 	
-{ 0x3E5E, 0x4C40}, 	
-{ 0x3E60, 0x8E4D}, 	
-{ 0x3E62, 0x8110}, 	
-{ 0x3E64, 0x0CAF}, 	
-{ 0x3E66, 0x4D80}, 	
-{ 0x3E68, 0x100C}, 	
-{ 0x3E6A, 0x8440}, 	
-{ 0x3E6C, 0x4C81}, 	
-{ 0x3E6E, 0x7C5B}, 	
-{ 0x3E70, 0x7000}, 	
-{ 0x3E72, 0x8054}, 	
-{ 0x3E74, 0x924C}, 	
-{ 0x3E76, 0x4078}, 	
-{ 0x3E78, 0x4D4F}, 	
-{ 0x3E7A, 0x4E98}, 	
-{ 0x3E7C, 0x504E}, 	
-{ 0x3E7E, 0x4F97}, 	
-{ 0x3E80, 0x4F4E}, 	
-{ 0x3E82, 0x507C}, 	
-{ 0x3E84, 0x7B8D}, 	
-{ 0x3E86, 0x4D88}, 	
-{ 0x3E88, 0x4E10}, 	
-{ 0x3E8A, 0x0940}, 	
-{ 0x3E8C, 0x8879}, 	
-{ 0x3E8E, 0x5481}, 	
-{ 0x3E90, 0x7000}, 	
-{ 0x3E92, 0x8082}, 	
-{ 0x3E94, 0x7281}, 	
-{ 0x3E96, 0x4C40}, 	
-{ 0x3E98, 0x8E4D}, 	
-{ 0x3E9A, 0x8110}, 	
-{ 0x3E9C, 0x0CAF}, 	
-{ 0x3E9E, 0x4D80}, 	
-{ 0x3EA0, 0x100C}, 	
-{ 0x3EA2, 0x8440}, 	
-{ 0x3EA4, 0x4C81}, 	
-{ 0x3EA6, 0x7C93}, 	
-{ 0x3EA8, 0x7000}, 	
-{ 0x3EAA, 0x0000}, 	
-{ 0x3EAC, 0x0000}, 	
-{ 0x3EAE, 0x0000}, 	
-{ 0x3EB0, 0x0000}, 	
-{ 0x3EB2, 0x0000}, 	
-{ 0x3EB4, 0x0000}, 	
-{ 0x3EB6, 0x0000}, 	
-{ 0x3EB8, 0x0000}, 	
-{ 0x3EBA, 0x0000}, 	
-{ 0x3EBC, 0x0000}, 	
-{ 0x3EBE, 0x0000}, 	
-{ 0x3EC0, 0x0000}, 	
-{ 0x3EC2, 0x0000}, 	
-{ 0x3EC4, 0x0000}, 	
-{ 0x3EC6, 0x0000}, 	
-{ 0x3EC8, 0x0000}, 	
-{ 0x3ECA, 0x0000}, 	
-
-{ 0x30B2, 0xC000}, 	
-{ 0x30D4, 0x9400}, 	
-{ 0x31C0, 0x0000}, 	
-{ 0x316A, 0x8200}, 	
-{ 0x316C, 0x8200}, 	
-{ 0x3EFE, 0x2808}, 	
-{ 0x3EFC, 0x2868}, 	
-{ 0x3ED2, 0xD165}, 	
-{ 0x3EF2, 0xD165}, 	
-{ 0x3ED8, 0x7F1A}, 	
-{ 0x3EDA, 0x2828}, 	
-{ 0x3EE2, 0x0058}, 	
-
-{ 0x002C, 0x000F}, 	
-
-{ 0x3382, 0x012C}, 	
-{ 0x3384, 0x0158}, 	
-{ 0x3386, 0x015C}, 	
-{ 0x3388, 0x00E6}, 	
-
-{ 0x338A, 0x000F}, 	
-
-{ 0x3276, 0x03FF}, 	
-{ 0x32B2, 0x0000}, 	
-{ 0x3210, 0x0000}, 	
-{ 0x3226, 0x0FFE}, 	
-{ 0x3228, 0x0FFF}, 	
-
-{ 0x305E, 0x1a20}, 	
-{ 0x32D4, 0x0080}, 	
-{ 0x32D6, 0x0080}, 	
-{ 0x32D8, 0x0080}, 	
-{ 0x32DA, 0x0080}, 	
-{ 0x32DC, 0x0080}, 	
-
-{ 0x3C00, 0x4000}, 	
-{ 0x3C00, 0x4001}, 	
-{ 0x3C40, 0x783C}, 	
-
-{ 0x0032, 0x01D8}, 	
-
-
-{ 0x301A, 0x10F0}, 	
-{0x4334, 0,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_POLL_NOT_EQUAL,0xFFFF},
-
-	
-
-{ 0x3C42, 0x1800}, 	
-{ 0x3C42, 0x0000}, 	
-{ 0x4322, 0xF0D0}, 	
-{ 0x3C06, 0x0001}, 	
-
-{ 0x0014, 0x2045}, 	
-{ 0x3C46, 0x096A}, 	
-{ 0x3C40, 0xAC3C}, 	
-{ 0x4312, 0x009A}, 	
-{ 0x0012, 0x0090}, 	
-{ 0x3C4E, 0x0F00}, 	
-{ 0x3C50, 0x0B06}, 	
-{ 0x3C52, 0x0D01}, 	
-{ 0x3C54, 0x071E}, 	
-{ 0x3C56, 0x0006}, 	
-{ 0x3C58, 0x0A0C}, 	
-{ 0x001A, 0x0014}, 	
-{ 0x0010, 0x0341}, 	
-{ 0x002A, 0x7F7D}, 	
-{ 0x0014, 0x2047}, 	
-
-{0x0014, 0,MSM_CAMERA_I2C_WORD_DATA,MSM_CAMERA_I2C_CMD_POLL_EQUAL,0x8000},
-
-
-{ 0x0014, 0xA046}, 	
-
-{ 0x3002, 0x001C}, 	
-{ 0x3004, 0x0020}, 	
-{ 0x3006, 0x045F}, 	
-{ 0x3008, 0x07A7}, 	
-{ 0x300A, 0x049D}, 	
-{ 0x300C, 0x0C48}, 	
-{ 0x3010, 0x00D4}, 	
-{ 0x3040, 0x8041}, 	
-{ 0x3ECE, 0x000A}, 	
-{ 0x3256, 0x043F}, 	
-{ 0x3254, 0x0002}, 	
-{ 0x4304, 0x0788}, 	
-{ 0x4306, 0x0440}, 	
-{ 0x4300, 0x0001}, 	
-{ 0x4302, 0x0210}, 	
-{ 0x3C38, 0x0006}, 	
-{ 0x3012, 0x0172}, 	
-{ 0x3014, 0x04C4}, 	
-
-{ 0x3C44, 0x0080}, 	
-{ 0x3C44, 0x00C0}, 	
-{ 0x3C44, 0x0080}, 	
-
-#if 1
-{0x301C, 0x0102},
-{0x3C40, 0xAC34},	
-{0xffff,50},
-#endif
-
-#if 0
-{ 0x3C40, 0xAC36},	
-{0x301C, 0x0},
-#else
-{0x301C, 0x0002},
-{0x3C40, 0xAC36},
-
-#if 0
-{0xffff,50},
-{0x301C, 0x0102},
-{0x3C40, 0xAC34},
-#endif
-#endif
-
-};
 
 static struct msm_sensor_output_info_t ar0260_dimensions[] = {
 	{
-		.x_output = 0x0788, 
-		.y_output = 0x0440, 
-		.line_length_pclk = 0x0C48, 
-		.frame_length_lines = 0x049D, 
+		.x_output = 0x0788,
+		.y_output = 0x0440,
+		.line_length_pclk = 0x0C48,
+		.frame_length_lines = 0x049D,
 		.vt_pixel_clk = 111428570,
 		.op_pixel_clk = 78000000,
 		.binning_factor = 1,
@@ -719,7 +375,6 @@ static struct msm_sensor_output_info_t ar0260_dimensions[] = {
 		.y_even_inc = 1,
 		.y_odd_inc = 1,
 		.binning_rawchip = 0x11,
-		.is_hdr = 0,
 		
 	},
 	{
@@ -740,52 +395,6 @@ static struct msm_sensor_output_info_t ar0260_dimensions[] = {
 		.y_even_inc = 1,
 		.y_odd_inc = 1,
 		.binning_rawchip = 0x11,
-		.is_hdr = 0,
-
-	},
-};
-
-static struct msm_sensor_output_info_t ar0260_dimensions_yushanii[] = {
-	{
-		.x_output = 0x0788, 
-		.y_output = 0x0440, 
-		.line_length_pclk = 0x0C48, 
-		.frame_length_lines = 0x049D, 
-		.vt_pixel_clk = 111428570,
-		.op_pixel_clk = 78000000,
-		.binning_factor = 1,
-
-		.x_addr_start = 0,
-		.y_addr_start = 0,
-		.x_addr_end = 0x0788-1,
-		.y_addr_end = 0x0440-1,
-		.x_even_inc = 1,
-		.x_odd_inc = 1,
-		.y_even_inc = 1,
-		.y_odd_inc = 1,
-		.binning_rawchip = 0x11,
-		.is_hdr = 0,
-
-	},
-	{
-		.x_output = 0x0788,
-		.y_output = 0x0440,
-		.line_length_pclk = 0x0C48,
-		.frame_length_lines = 0x049D,
-		.vt_pixel_clk = 111428570,
-		.op_pixel_clk = 78000000,
-		.binning_factor = 1,
-
-		.x_addr_start = 0,
-		.y_addr_start = 0,
-		.x_addr_end = 0x0788-1,
-		.y_addr_end = 0x0440-1,
-		.x_even_inc = 1,
-		.x_odd_inc = 1,
-		.y_even_inc = 1,
-		.y_odd_inc = 1,
-		.binning_rawchip = 0x11,
-		.is_hdr = 0,
 
 	},
 };
@@ -1017,7 +626,6 @@ static struct msm_sensor_output_info_t ar0260_dimensions[] = {
 		.y_even_inc = 1,
 		.y_odd_inc = 1,
 		.binning_rawchip = 0x11,
-		.is_hdr = 0,
 	},
 	{
 		.x_output = 0x0788,
@@ -1036,7 +644,6 @@ static struct msm_sensor_output_info_t ar0260_dimensions[] = {
 		.y_even_inc = 1,
 		.y_odd_inc = 1,
 		.binning_rawchip = 0x11,
-		.is_hdr = 0,
 	},
 };
 
@@ -1068,11 +675,6 @@ static struct v4l2_subdev_info ar0260_subdev_info[] = {
 static struct msm_camera_i2c_conf_array ar0260_init_conf[] = {
 	{&ar0260_recommend_settings[0],
 	ARRAY_SIZE(ar0260_recommend_settings), 0, MSM_CAMERA_I2C_WORD_DATA}
-};
-
-static struct msm_camera_i2c_conf_array ar0260_init_conf_yushanii[] = {
-	{&ar0260_recommend_settings_yushanii[0],
-	ARRAY_SIZE(ar0260_recommend_settings_yushanii), 0, MSM_CAMERA_I2C_WORD_DATA}
 };
 
 static struct msm_camera_i2c_conf_array ar0260_confs[] = {
@@ -1475,17 +1077,12 @@ int32_t ar0260_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 		return rc;
 	}
 
-	if (!sdata->use_rawchip && (sdata->htc_image != HTC_CAMERA_IMAGE_YUSHANII_BOARD)) {
+	if (!sdata->use_rawchip) {
 		rc = msm_camio_clk_enable(CAMIO_CAM_MCLK_CLK);
 		if (rc < 0) {
 			return rc;
 		}
 	}
-
-#ifdef CONFIG_RAWCHIPII
-	Ilp0100_enableIlp0100SensorClock(SENSOR_1);
-	mdelay(35);	
-#endif
 
 #if 0	
 	mdelay(10);	
@@ -1508,7 +1105,7 @@ int32_t ar0260_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	}
 	mdelay(1); 
 	gpio_direction_output(CAM_PIN_GPIO_CAM2_RSTz, 1);
-	mdelay(1); 
+	mdelay(5); 
 	gpio_direction_output(CAM_PIN_GPIO_CAM2_RSTz, 0);
 
 
@@ -1552,7 +1149,7 @@ int32_t ar0260_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 	mdelay(10); 
 #endif
 
-	if (!sdata->use_rawchip && (sdata->htc_image != HTC_CAMERA_IMAGE_YUSHANII_BOARD)) {
+	if (!sdata->use_rawchip) {
 		msm_camio_clk_disable(CAMIO_CAM_MCLK_CLK);
 	}
 	rc = sdata->camera_power_off();
@@ -1567,26 +1164,10 @@ int32_t ar0260_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
 	int	rc = 0;
-	
-	
-	int max_probe_count = 1;
-	int probe_count = 0;
-
 	pr_info("%s\n", __func__);
-
-sensor_probe_retry:
 	rc = msm_sensor_i2c_probe(client, id);
 	if(rc >= 0)
 		ar0260_sysfs_init();
-	else {
-		
-		probe_count++;
-		if(probe_count < max_probe_count) {
-			pr_info("%s  apply sensor probe retry mechanism , probe_count=%d\n", __func__, probe_count);
-			goto sensor_probe_retry;
-		}
-	}
-
 	pr_info("%s: rc(%d)\n", __func__, rc);
 	return rc;
 }
@@ -1674,26 +1255,6 @@ static int ar0260_read_fuseid(struct sensor_cfg_data *cdata,
 
 }
 
-int32_t aptina_write_exp_gain(struct msm_sensor_ctrl_t *s_ctrl,
-		int mode, uint16_t gain, uint16_t dig_gain, uint32_t line) 
-{
-	CDBG("%s: called\n", __func__);
-	if(line > s_ctrl->sensor_exp_gain_info->sensor_max_linecount)
-		line = s_ctrl->sensor_exp_gain_info->sensor_max_linecount;
-
-	s_ctrl->func_tbl->sensor_group_hold_on(s_ctrl);
-
-	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
-		s_ctrl->sensor_exp_gain_info->coarse_int_time_addr, line,
-		MSM_CAMERA_I2C_WORD_DATA);
-
-	msm_camera_i2c_write(s_ctrl->sensor_i2c_client,
-		s_ctrl->sensor_exp_gain_info->global_gain_addr, gain,
-		MSM_CAMERA_I2C_WORD_DATA);
-	s_ctrl->func_tbl->sensor_group_hold_off(s_ctrl);
-	return 0;
-}
-
 static int __init msm_sensor_init_module(void)
 {
 	pr_info("%s\n", __func__);
@@ -1720,8 +1281,8 @@ static struct msm_sensor_fn_t ar0260_func_tbl = {
 	.sensor_group_hold_on = msm_sensor_group_hold_on,
 	.sensor_group_hold_off = msm_sensor_group_hold_off,
 	.sensor_set_fps = msm_sensor_set_fps,
-	.sensor_write_exp_gain_ex = aptina_write_exp_gain, 
-	.sensor_write_snapshot_exp_gain_ex = aptina_write_exp_gain, 
+	.sensor_write_exp_gain_ex = msm_sensor_write_exp_gain1_ex,
+	.sensor_write_snapshot_exp_gain_ex = msm_sensor_write_exp_gain1_ex,
 	.sensor_setting = msm_sensor_setting_parallel,
 	.sensor_set_sensor_mode = msm_sensor_set_sensor_mode,
 	.sensor_mode_init = msm_sensor_mode_init,
@@ -1738,13 +1299,6 @@ static struct msm_sensor_reg_t ar0260_regs = {
 	.start_stream_conf_size = ARRAY_SIZE(ar0260_start_settings),
 	.stop_stream_conf = ar0260_stop_settings,
 	.stop_stream_conf_size = ARRAY_SIZE(ar0260_stop_settings),
-
-
-	.start_stream_conf_yushanii = ar0260_start_settings_yushanii,
-	.start_stream_conf_size_yushanii = ARRAY_SIZE(ar0260_start_settings_yushanii),
-	.stop_stream_conf_yushanii = ar0260_stop_settings_yushanii,
-	.stop_stream_conf_size_yushanii = ARRAY_SIZE(ar0260_stop_settings_yushanii),
-
 	.group_hold_on_conf = ar0260_groupon_settings,
 	.group_hold_on_conf_size = ARRAY_SIZE(ar0260_groupon_settings),
 	.group_hold_off_conf = ar0260_groupoff_settings,
@@ -1752,16 +1306,8 @@ static struct msm_sensor_reg_t ar0260_regs = {
 		ARRAY_SIZE(ar0260_groupoff_settings),
 	.init_settings = &ar0260_init_conf[0],
 	.init_size = ARRAY_SIZE(ar0260_init_conf),
-
-	.init_settings_yushanii = &ar0260_init_conf_yushanii[0],
-	.init_size_yushanii = ARRAY_SIZE(ar0260_init_conf_yushanii),
-
 	.mode_settings = &ar0260_confs[0],
 	.output_settings = &ar0260_dimensions[0],
-
-	.output_settings_yushanii = &ar0260_dimensions_yushanii[0],
-
-
 	.num_conf = ARRAY_SIZE(ar0260_confs),
 };
 

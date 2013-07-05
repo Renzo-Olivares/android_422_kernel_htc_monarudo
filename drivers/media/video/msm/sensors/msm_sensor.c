@@ -167,13 +167,16 @@ int32_t msm_sensor_write_init_settings(struct msm_sensor_ctrl_t *s_ctrl)
 	int32_t rc;
 	CDBG("%s: called\n", __func__);
 
+#ifdef CONFIG_RAWCHIPII
 	if ((s_ctrl->sensordata->htc_image == HTC_CAMERA_IMAGE_YUSHANII_BOARD) && (s_ctrl->msm_sensor_reg->init_settings_yushanii))
 	{
 		rc = msm_sensor_write_all_conf_array(
 			s_ctrl->sensor_i2c_client,
 			s_ctrl->msm_sensor_reg->init_settings_yushanii,
 			s_ctrl->msm_sensor_reg->init_size_yushanii);
-	} else {
+	} else
+#endif
+        {
 		rc = msm_sensor_write_all_conf_array(
 			s_ctrl->sensor_i2c_client,
 			s_ctrl->msm_sensor_reg->init_settings,
@@ -262,6 +265,7 @@ void msm_sensor_start_stream(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	CDBG("%s: called\n", __func__);
 
+#ifdef CONFIG_RAWCHIPII
 	if ((s_ctrl->sensordata->htc_image == HTC_CAMERA_IMAGE_YUSHANII_BOARD) && (s_ctrl->msm_sensor_reg->start_stream_conf_yushanii))
 	{
 		msm_camera_i2c_write_tbl(
@@ -269,7 +273,9 @@ void msm_sensor_start_stream(struct msm_sensor_ctrl_t *s_ctrl)
 		s_ctrl->msm_sensor_reg->start_stream_conf_yushanii,
 		s_ctrl->msm_sensor_reg->start_stream_conf_size_yushanii,
 		s_ctrl->msm_sensor_reg->default_data_type);
-	} else {
+	} else
+#endif
+        {
 		msm_camera_i2c_write_tbl(
 		s_ctrl->sensor_i2c_client,
 		s_ctrl->msm_sensor_reg->start_stream_conf,
@@ -282,6 +288,7 @@ void msm_sensor_stop_stream(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	CDBG("%s: called\n", __func__);
 
+#ifdef CONFIG_RAWCHIPII
 	if ((s_ctrl->sensordata->htc_image == HTC_CAMERA_IMAGE_YUSHANII_BOARD) && (s_ctrl->msm_sensor_reg->stop_stream_conf_yushanii))
 	{
 		msm_camera_i2c_write_tbl(
@@ -289,7 +296,9 @@ void msm_sensor_stop_stream(struct msm_sensor_ctrl_t *s_ctrl)
 		s_ctrl->msm_sensor_reg->stop_stream_conf_yushanii,
 		s_ctrl->msm_sensor_reg->stop_stream_conf_size_yushanii,
 		s_ctrl->msm_sensor_reg->default_data_type);
-	} else {
+	} else
+#endif
+        {
 		msm_camera_i2c_write_tbl(
 		s_ctrl->sensor_i2c_client,
 		s_ctrl->msm_sensor_reg->stop_stream_conf,
@@ -1301,14 +1310,16 @@ int32_t msm_sensor_get_output_info(struct msm_sensor_ctrl_t *s_ctrl,
             s_ctrl->msm_sensor_reg->output_settings[i].y_output -= 1;
 
 	
-	 
+#ifdef CONFIG_RAWCHIPII	 
 	if ((s_ctrl->sensordata->htc_image == HTC_CAMERA_IMAGE_YUSHANII_BOARD) && (s_ctrl->msm_sensor_reg->output_settings_yushanii)) {
 		if (copy_to_user((void *)sensor_output_info->output_info,
 			s_ctrl->msm_sensor_reg->output_settings_yushanii,
 			sizeof(struct msm_sensor_output_info_t) *
 			s_ctrl->msm_sensor_reg->num_conf))
 			rc = -EFAULT;
-	} else {
+	} else
+#endif
+       {
 		if (copy_to_user((void *)sensor_output_info->output_info,
 			s_ctrl->msm_sensor_reg->output_settings,
 			sizeof(struct msm_sensor_output_info_t) *
