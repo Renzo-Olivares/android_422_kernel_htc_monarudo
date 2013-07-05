@@ -943,3 +943,4 @@ static struct attribute *android_htc_usb_attributes[] = {
 static const struct attribute_group android_usb_attr_group = {
 	.attrs = android_htc_usb_attributes,
 };
+
