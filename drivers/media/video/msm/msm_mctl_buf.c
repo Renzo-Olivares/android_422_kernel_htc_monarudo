@@ -28,7 +28,9 @@
 #include "msm.h"
 #include "msm_ispif.h"
 
+#ifdef CONFIG_RAWCHIPII
 #include "swfv/swfa_k.h"
+#endif
 
 #ifdef CONFIG_MSM_CAMERA_DEBUG
 #define D(fmt, args...) pr_debug("msm_mctl_buf: " fmt, ##args)
@@ -444,6 +446,8 @@ int msm_mctl_buf_done_proc(
 
 	if (pmctl->htc_af_info.af_input.af_use_sw_sharpness && image_mode == MSM_V4L2_EXT_CAPTURE_MODE_PREVIEW)
 	{
+
+#ifdef CONFIG_RAWCHIPII
 	    rc = swfa_FeatureAnalysis((uint8_t* )mem->arm_vaddr,
 			                          pmctl->htc_af_info.af_input.preview_width,
 			                          pmctl->htc_af_info.af_input.preview_height,
@@ -452,6 +456,7 @@ int msm_mctl_buf_done_proc(
 			                          pmctl->htc_af_info.af_input.roi_width,
 			                          pmctl->htc_af_info.af_input.roi_height,
 			                          1);
+#endif
 	    if(!rc)
 	        pmctl->htc_af_info.af_input.af_use_sw_sharpness = false;
 	}
