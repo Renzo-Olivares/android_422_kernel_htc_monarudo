@@ -29,7 +29,6 @@
 static atomic_t q6_effect_mode = ATOMIC_INIT(-1);
 extern unsigned int system_rev;
 extern unsigned int engineerid;
-extern unsigned skuid;
 
 static int monarudo_get_hw_component(void)
 {
@@ -41,41 +40,10 @@ static int monarudo_get_hw_component(void)
 
 static int monarudo_enable_digital_mic(void)
 {
-	int ret;
-	if((system_rev == XA)||(system_rev == XB)){
-		ret = 0;
-	}
-	else if ((system_rev == XC)||(system_rev == XD)){
-		if (((skuid & 0xFF) == 0x0B) ||
-			((skuid & 0xFF) == 0x0D) ||
-			((skuid & 0xFF) == 0x0C) ||
-			((skuid & 0xFF) == 0x0E) ||
-			((skuid & 0xFF) == 0x0F) ||
-			((skuid & 0xFF) == 0x10) ||
-			((skuid & 0xFF) == 0x11) ||
-			((skuid & 0xFF) == 0x12) ||
-			((skuid & 0xFF) == 0x13) ||
-			((skuid & 0xFF) == 0x14) ||
-			((skuid & 0xFF) == 0x15)) {
-			ret = 1;
-		}
-		else{
-			ret = 0;
-		}
-	}
-	else{
-		if ((skuid & 0xFFF00) == 0x34C00) {
-			ret = 1;
-		}
-		else if ((skuid & 0xFFF00) == 0x38900) {
-			ret = 2;
-		}
-		else {
-			ret = 3;
-		}
-	}
-	printk(KERN_INFO "monarudo_enable_digital_mic:skuid=0x%x, system_rev=%x return %d\n", skuid, system_rev, ret);
-	return ret;
+    if(system_rev >= XD)
+        return 1;
+
+    return 0;
 }
 
 void apq8064_set_q6_effect_mode(int mode)
