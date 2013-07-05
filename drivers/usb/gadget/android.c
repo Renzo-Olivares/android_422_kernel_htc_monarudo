@@ -2033,7 +2033,6 @@ static struct android_usb_function *supported_functions[] = {
  	&rmnet_sdio_function,
  	&rmnet_smd_sdio_function,
  	&ccid_function,
-	&mbim_function,
 	NULL
 };
 
