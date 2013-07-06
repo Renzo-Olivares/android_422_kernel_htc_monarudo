@@ -27,7 +27,6 @@
 #include "devices.h"
 #include "board-monarudo.h"
 #include "board-storage-common-a.h"
-#include <mach/htc_4335_wl_reg.h>  
 
 
 enum sdcc_controllers {
@@ -405,26 +404,10 @@ int sdc_pad_gpio_config(unsigned int pad_addr, unsigned cmd_pull, unsigned data_
 	return 1;
 }
 
-#define ENABLE_4335BT_WAR 1
-
-#ifdef ENABLE_4335BT_WAR
-extern int bcm_bt_lock(int cookie);
-extern void bcm_bt_unlock(int cookie);
-#endif 
-
 int monarudo_wifi_power(int on)
 {
 	const unsigned SDC3_HDRV_PULL_CTL_ADDR = (unsigned) MSM_TLMM_BASE + 0x20A4;
 
-#ifdef ENABLE_4335BT_WAR
-	int lock_cookie_wifi = 'W' | 'i'<<8 | 'F'<<16 | 'i'<<24;	
-
-	printk("WiFi: trying to acquire BT lock\n");
-	if (bcm_bt_lock(lock_cookie_wifi) != 0)
-		printk("** WiFi: timeout in acquiring bt lock**\n");
-	else
-		printk("** WiFi: btlock acquired**\n");
-#endif 
 	printk(KERN_INFO "%s: %d\n", __func__, on);
 
 	if (on) {
@@ -433,7 +416,7 @@ int monarudo_wifi_power(int on)
 #else
 		sdc_pad_gpio_config(SDC3_HDRV_PULL_CTL_ADDR,
 				BIT_HDRIV_PULL_UP, BIT_HDRIV_PULL_UP,
-				HDRIV_STR_12MA, HDRIV_STR_12MA, HDRIV_STR_12MA);
+				HDRIV_STR_8MA, HDRIV_STR_8MA, HDRIV_STR_8MA);
 #endif
 		config_gpio_table(wifi_on_gpio_table,
 				  ARRAY_SIZE(wifi_on_gpio_table));
@@ -450,20 +433,14 @@ int monarudo_wifi_power(int on)
 	}
 
 	mdelay(1); 
-	
-	
-	htc_BCM4335_wl_reg_ctl((on)?BCM4335_WL_REG_ON:BCM4335_WL_REG_OFF, ID_WIFI); 
+	wl_reg_on_gpio.config.output_value = on? 1: 0;
+	pm8xxx_gpio_config(wl_reg_on_gpio.gpio, &wl_reg_on_gpio.config);
 
 	mdelay(1); 
-#if 0
 	wl_dev_wake_gpio.config.output_value = on? 1: 0;
 	pm8xxx_gpio_config(wl_dev_wake_gpio.gpio, &wl_dev_wake_gpio.config);
-#endif
-	mdelay(120);
 
-#ifdef ENABLE_4335BT_WAR
-	bcm_bt_unlock(lock_cookie_wifi);
-#endif
+	mdelay(120);
 	return 0;
 }
 EXPORT_SYMBOL(monarudo_wifi_power);
