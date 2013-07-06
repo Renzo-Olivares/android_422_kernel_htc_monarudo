@@ -40,7 +40,6 @@
 #include "../../char/diag/diagfwd.h"
 #include "../../char/diag/diagmem.h"
 #include "../../char/diag/diagchar_hdlc.h"
-#include "../../char/diag/diagfwd_bridge.h"
 #if defined(CONFIG_MACH_MECHA)
 #include "../../../arch/arm/mach-msm/7x30-smd/sdio_diag.h"
 #endif
@@ -226,18 +225,6 @@ static inline struct diag_context *func_to_diag(struct usb_function *f)
 	return container_of(f, struct diag_context, function);
 }
 
-static inline const char *ctxt_to_string(struct diag_context *ctxt)
-{
-	if (ctxt == mdmctxt)
-		return DIAG_MDM;
-	else if (ctxt == qscctxt)
-		return DIAG_QSC;
-	else if (ctxt == legacyctxt)
-		return DIAG_LEGACY;
-	else
-		return "unknown";
-}
-
 static void usb_config_work_func(struct work_struct *work)
 {
 	struct diag_context *ctxt = container_of(work,
@@ -251,11 +238,11 @@ static void usb_config_work_func(struct work_struct *work)
 	usb_state = ctxt->usb_state;
 	spin_unlock_irqrestore(&ctxt->lock, flags);
 	if (usb_state == 0) {
-		DIAG_INFO("%s: dev=%s, USB state = 0. Skip this config_work\n", __func__, ctxt_to_string(ctxt));
+		DIAG_INFO("%s: dev=%s, USB state = 0. Skip this config_work\n", __func__, (ctxt == mdmctxt)?DIAG_MDM:DIAG_LEGACY);
 		return;
 	}
 
-	DIAG_INFO("%s: dev=%s\n", __func__, ctxt_to_string(ctxt));
+	DIAG_INFO("%s: dev=%s\n", __func__, (ctxt == mdmctxt)?DIAG_MDM:DIAG_LEGACY);
 #if DIAG_XPST
 	ctxt->tx_count = ctxt->rx_count = 0;
 	ctxt->usb_in_count = ctxt->usb_out_count = 0;
@@ -312,7 +299,7 @@ static void diag_write_complete(struct usb_ep *ep,
 	}
 	spin_unlock_irqrestore(&ctxt->lock, flags);
 
-	if (ctxt->ch.notify && !check_if_htc_diag_resp(d_req))
+	if (ctxt->ch.notify)
 		ctxt->ch.notify(ctxt->ch.priv, USB_DIAG_WRITE_DONE, d_req);
 }
 
@@ -337,7 +324,7 @@ static void diag_read_complete(struct usb_ep *ep,
 	ctxt->dpkts_tomodem++;
 #if DIAG_XPST
 #ifdef HTC_DIAG_DEBUG
-	DIAG_INFO("%s: dev=%s\n", __func__, ctxt_to_string(ctxt));
+	DIAG_INFO("%s: dev=%s\n", __func__, (ctxt == mdmctxt)?DIAG_MDM:DIAG_LEGACY);
 	print_hex_dump(KERN_DEBUG, "from PC: ", DUMP_PREFIX_ADDRESS, 16, 1,
 			req->buf, req->actual, 1);
 #endif
@@ -376,7 +363,7 @@ struct usb_diag_ch *usb_diag_open(const char *name, void *priv,
 	static int xpst_initialized;
 #endif
 
-	pr_info("[USB] %s: name: %s\n", __func__, name);
+	printk(KERN_DEBUG "[USB] %s: name: %s\n", __func__, name);
 	spin_lock_irqsave(&ch_lock, flags);
 	
 	list_for_each_entry(ch, &usb_diag_ch_list, list) {
@@ -395,14 +382,8 @@ struct usb_diag_ch *usb_diag_open(const char *name, void *priv,
 		} else if (!strcmp(name, DIAG_MDM)) {
 			mdmctxt = ctxt = &_mdm_context;
 			mdmch = ch = &ctxt->ch;
-		} else if (!strcmp(name, DIAG_QSC)) {
-			qscctxt = ctxt = &_qsc_context;
-			qscch = ch = &ctxt->ch;
-		} else {
-			pr_err("[USB] %s: name: %s was not found\n",
-							__func__, name);
+		} else
 			return NULL;
-		}
 #if DIAG_XPST
 		if (!xpst_initialized) {
 			misc_register(&htc_diag_device_fops);
@@ -922,15 +903,11 @@ static void diag_cleanup(void)
 		}
 		spin_unlock_irqrestore(&ch_lock, flags);
 	}
-#if DIAG_XPST
-	switch_dev_unregister(&sw_htc_usb_diag);
-#endif
 }
 
 static int diag_setup(void)
 {
 #if DIAG_XPST
-	int ret;
 	struct diag_context *dev = get_modem_ctxt();
 	dev->ready = 1;
 
@@ -945,11 +922,6 @@ static int diag_setup(void)
 	mutex_init(&dev->diag2arm9_lock);
 	mutex_init(&dev->diag2arm9_read_lock);
 	mutex_init(&dev->diag2arm9_write_lock);
-
-	sw_htc_usb_diag.name = "usb_diag";
-	ret = switch_dev_register(&sw_htc_usb_diag);
-	if (ret < 0)
-		pr_err("switch_dev_register fail:usb_diag\n");
 #endif
 	fdiag_debugfs_init();
 

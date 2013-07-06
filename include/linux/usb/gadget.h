@@ -339,7 +339,6 @@ struct usb_gadget {
 	const char			*name;
 	struct device			dev;
 	u8				usb_core_id;
-	int             miMaxMtu;
 };
 
 static inline void set_gadget_data(struct usb_gadget *gadget, void *data)

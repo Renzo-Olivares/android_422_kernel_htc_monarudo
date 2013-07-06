@@ -54,14 +54,12 @@ struct eth_dev {
 
 	bool			zlp;
 	u8			host_mac[ETH_ALEN];
-	int             miMaxMtu;
 };
 
 
 #define RX_EXTRA	20	
 
 #define DEFAULT_QLEN	2	
-#define ETH_FRAME_LEN_MAX       9000
 
 #ifdef CONFIG_USB_GADGET_DUALSPEED
 
@@ -113,8 +111,6 @@ static inline int qlen(struct usb_gadget *gadget)
 #define INFO(dev, fmt, args...) \
 	xprintk(dev , KERN_INFO , fmt , ## args)
 
-static struct eth_dev *the_dev;
-
 
 
 static int ueth_change_mtu(struct net_device *net, int new_mtu)
@@ -122,18 +118,12 @@ static int ueth_change_mtu(struct net_device *net, int new_mtu)
 	struct eth_dev	*dev = netdev_priv(net);
 	unsigned long	flags;
 	int		status = 0;
-	int     iMaxMtuSet = ETH_FRAME_LEN;
-
-	if (the_dev) {
-        if (the_dev->miMaxMtu == ETH_FRAME_LEN_MAX)
-            iMaxMtuSet = ETH_FRAME_LEN_MAX;
-	}
 
 	
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->port_usb)
 		status = -EBUSY;
-	else if (new_mtu <= ETH_HLEN || new_mtu > iMaxMtuSet)
+	else if (new_mtu <= ETH_HLEN || new_mtu > ETH_FRAME_LEN)
 		status = -ERANGE;
 	else
 		net->mtu = new_mtu;
@@ -462,20 +452,13 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 					struct net_device *net)
 {
 	struct eth_dev		*dev = netdev_priv(net);
-	int			length;
+	int			length = skb->len;
 	int			retval;
 	struct usb_request	*req = NULL;
 	unsigned long		flags;
 	struct usb_ep		*in;
 	u16			cdc_filter;
 
-	if ((!skb) || (IS_ERR(skb)))
-		return NETDEV_TX_OK;
-
-	if ((!net) || (IS_ERR(net)))
-		return NETDEV_TX_OK;
-
-	length = skb->len;
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->port_usb) {
 		in = dev->port_usb->in_ep;
@@ -698,6 +681,7 @@ static int get_ether_addr(const char *str, u8 *dev_addr)
 	return 1;
 }
 
+static struct eth_dev *the_dev;
 
 static const struct net_device_ops eth_netdev_ops = {
 	.ndo_open		= eth_open,
@@ -726,11 +710,6 @@ int gether_setup_name(struct usb_gadget *g, u8 ethaddr[ETH_ALEN],
 
 	if (the_dev) {
 		memcpy(ethaddr, the_dev->host_mac, ETH_ALEN);
-        if (g) {
-            the_dev->miMaxMtu = g->miMaxMtu;
-            if (the_dev->miMaxMtu == ETH_FRAME_LEN_MAX)
-                the_dev->net->mtu = ETH_FRAME_LEN_MAX;
-        }
 		return 0;
 	}
 
@@ -779,11 +758,7 @@ int gether_setup_name(struct usb_gadget *g, u8 ethaddr[ETH_ALEN],
 		INFO(dev, "HOST MAC %pM\n", dev->host_mac);
 
 		the_dev = dev;
-        if (g) {
-            the_dev->miMaxMtu = g->miMaxMtu;
-            if (the_dev->miMaxMtu == ETH_FRAME_LEN_MAX)
-                the_dev->net->mtu = ETH_FRAME_LEN_MAX;
-        }
+
 		netif_carrier_off(net);
 	}
 

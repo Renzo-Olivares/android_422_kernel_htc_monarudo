@@ -111,9 +111,6 @@ struct msm_otg_platform_data {
 	void (*setup_gpio)(enum usb_otg_state state);
 	int pmic_id_irq;
 	bool mhl_enable;
-	char *ldo_3v3_name;
-	char *ldo_1v8_name;
-	char *vddcx_name;
 	bool disable_reset_on_disconnect;
 	bool enable_dcd;
 	bool enable_lpm_on_dev_suspend;
@@ -231,7 +228,6 @@ struct msm_hsic_host_platform_data {
 	unsigned strobe;
 	unsigned data;
 	struct msm_bus_scale_pdata *bus_scale_table;
-	u32 swfi_latency;
 };
 
 struct msm_usb_host_platform_data {
