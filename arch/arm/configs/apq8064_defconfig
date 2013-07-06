@@ -1464,14 +1464,14 @@ CONFIG_WLAN=y
 # CONFIG_WCNSS_CORE is not set
 # CONFIG_ATH_COMMON is not set
 # CONFIG_BCMDHD is not set
-CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/fw_bcm4335.bin"
+CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/fw_bcm4334.bin"
 CONFIG_BCMDHD_NVRAM_PATH="/etc/calibration"
 # CONFIG_BRCMFMAC is not set
 # CONFIG_HOSTAP is not set
 # CONFIG_IWM is not set
 # CONFIG_LIBERTAS is not set
 # CONFIG_MWIFIEX is not set
-CONFIG_BCMDHD_4335=m
+CONFIG_BCMDHD_4334=m
 
 #
 # Enable WiMAX (Networking options) to see the WiMAX drivers
