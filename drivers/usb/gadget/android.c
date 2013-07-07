@@ -79,6 +79,7 @@ static int os_type;
 #endif
 #include "u_ether.c"
 #include "u_bam_data.c"
+#include "f_mbim.c"
 #ifdef CONFIG_USB_ANDROID_NCM
 #include "f_ncm.c"
 #endif
