@@ -740,7 +740,7 @@ static struct android_usb_product usb_products[] = {
 	},
 #endif
 	{
-		.product_id	= 0x0f86, 
+		.product_id	= 0x0c02,
 		.num_functions	= ARRAY_SIZE(usb_functions_adb),
 		.functions	= usb_functions_adb,
 	},
@@ -1085,7 +1085,7 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_functions_mtp_ums_diag,
 	},
 	{
-		.product_id	= 0x0f87,
+		.product_id	= 0x0ca8,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb),
 		.functions	= usb_functions_mtp_adb,
 	},
@@ -1443,34 +1443,6 @@ static struct android_usb_product usb_products[] = {
 	},
 };
 
-static __maybe_unused int qsc_modem_product_id_match_array[] = {
-	0x0fab, 0x0f6c, 
-	0x0fac, 0x0f6d, 
-	0x0faf, 0x0f6e, 
-	0x0fae, 0x0f6f, 
-	0x0fbd, 0x0f70, 
-	0x0fbe, 0x0f71, 
-	0x0f8e, 0x0f72, 
-	0x0f8f, 0x0f73, 
-	0x0f7c, 0x0f6b, 
-	0x0f7d, 0x0f6a, 
-	-1,
-};
-
-static __maybe_unused int qsc_modem_usb_id_match(int product_id, int intrsharing)
-{
-	int *pid_array = qsc_modem_product_id_match_array;
-
-	if (!pid_array)
-		return product_id;
-
-	while (pid_array && pid_array[0] >= 0) {
-		if (product_id == pid_array[0])
-			return pid_array[1];
-		pid_array += 2;
-	}
-	return product_id;
-}
 
 #ifdef CONFIG_USB_GADGET_VERIZON_PRODUCT_ID
 #ifdef CONFIG_MACH_VIGOR
