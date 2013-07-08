@@ -3865,12 +3865,12 @@ static int hdmi_enable_5v(int on);
 static int hdmi_core_power(int on, int show);
 
 static mhl_driving_params monarudo_driving_params[] = {
-	{.format = HDMI_VFRMT_640x480p60_4_3,	.reg_a3=0xEC, .reg_a6=0x0C},
-	{.format = HDMI_VFRMT_720x480p60_16_9,	.reg_a3=0xEC, .reg_a6=0x0C},
-	{.format = HDMI_VFRMT_1280x720p60_16_9,	.reg_a3=0xFB, .reg_a6=0x0C},
-	{.format = HDMI_VFRMT_720x576p50_16_9,	.reg_a3=0xEC, .reg_a6=0x0C},
-	{.format = HDMI_VFRMT_1920x1080p24_16_9, .reg_a3=0xFB, .reg_a6=0x0C},
-	{.format = HDMI_VFRMT_1920x1080p30_16_9, .reg_a3=0xFB, .reg_a6=0x0C},
+  {.format = HDMI_VFRMT_640x480p60_4_3,  .reg_a3=0xFE, .reg_a6=0x0C},
+  {.format = HDMI_VFRMT_720x480p60_16_9,  .reg_a3=0xFE, .reg_a6=0x0C},
+  {.format = HDMI_VFRMT_1280x720p60_16_9,  .reg_a3=0xFE, .reg_a6=0x0C},
+  {.format = HDMI_VFRMT_720x576p50_16_9,  .reg_a3=0xFE, .reg_a6=0x0C},
+  {.format = HDMI_VFRMT_1920x1080p24_16_9, .reg_a3=0xFE, .reg_a6=0x0C},
+  {.format = HDMI_VFRMT_1920x1080p30_16_9, .reg_a3=0xFE, .reg_a6=0x0C},
 };
 
 static struct msm_hdmi_platform_data hdmi_msm_data = {
