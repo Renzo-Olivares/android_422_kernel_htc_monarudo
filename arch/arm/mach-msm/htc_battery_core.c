@@ -434,6 +434,35 @@ static ssize_t htc_battery_set_navigation(struct device *dev,
 	return count;
 }
 
+static ssize_t htc_battery_set_disable_limit_chg(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	int rc = 0;
+	unsigned long disable_limit_chg = 0;
+
+	rc = strict_strtoul(buf, 10, &disable_limit_chg);
+	if (rc)
+		return rc;
+
+	BATT_LOG("Set context disable_limit_chg = %lu", disable_limit_chg);
+
+	if((disable_limit_chg != 0) && (disable_limit_chg != 1))
+		return -EINVAL;
+
+	if (!battery_core_info.func.func_context_event_handler) {
+		BATT_ERR("No context_event_notify function!");
+		return -ENOENT;
+	}
+
+	if (disable_limit_chg)
+		battery_core_info.func.func_context_event_handler(EVENT_DAYDREAM_START);
+	else
+		battery_core_info.func.func_context_event_handler(EVENT_DAYDREAM_STOP);
+
+	return count;
+}
+
 static struct device_attribute htc_battery_attrs[] = {
 	HTC_BATTERY_ATTR(batt_id),
 	HTC_BATTERY_ATTR(batt_vol),
