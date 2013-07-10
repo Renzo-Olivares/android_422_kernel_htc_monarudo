@@ -495,6 +495,8 @@ static struct device_attribute htc_set_delta_attrs[] = {
 		htc_battery_set_network_search),
 	__ATTR(navigation, S_IWUSR | S_IWGRP, NULL,
 		htc_battery_set_navigation),
+	__ATTR(disable_limit_chg, S_IWUSR | S_IWGRP, NULL,
+		htc_battery_set_disable_limit_chg),
 };
 
 static int htc_battery_create_attrs(struct device *dev)
