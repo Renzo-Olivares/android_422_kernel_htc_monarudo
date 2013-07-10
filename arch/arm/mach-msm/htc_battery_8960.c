@@ -628,6 +628,31 @@ static int htc_battery_set_charging(int ctl)
 	return rc;
 }
 
+struct mutex chg_limit_lock;
+static void set_limit_charge_with_reason(bool enable, int reason)
+{
+	int prev_chg_limit_reason;
+	mutex_lock(&chg_limit_lock);
+	prev_chg_limit_reason = chg_limit_reason;
+	if (chg_limit_active_mask & reason) {
+		if (enable)
+			chg_limit_reason |= reason;
+		else
+			chg_limit_reason &= ~reason;
+
+		if (prev_chg_limit_reason ^ chg_limit_reason) {
+			BATT_LOG("chg_limit_reason:0x%x->0x%d",
+							prev_chg_limit_reason, chg_limit_reason);
+			if (!!prev_chg_limit_reason != !!chg_limit_reason &&
+					htc_batt_info.icharger &&
+					htc_batt_info.icharger->set_limit_charge_enable) {
+				htc_batt_info.icharger->set_limit_charge_enable(!!chg_limit_reason);
+			}
+		}
+	}
+	mutex_unlock(&chg_limit_lock);
+}
+
 static void __context_event_handler(enum batt_context_event event)
 {
 	pr_info("[BATT] handle context event(%d)\n", event);
@@ -1353,7 +1378,7 @@ static void batt_worker(struct work_struct *work)
 		critical_alarm_level_set = critical_alarm_level + 1;
 	}
 
-	
+	batt_update_limited_charge();
 	batt_check_overload();
 
 	pr_debug("[BATT] context_state=0x%x, suspend_highfreq_check_reason=0x%x\n",
