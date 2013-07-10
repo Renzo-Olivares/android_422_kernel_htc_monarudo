@@ -47,6 +47,7 @@ enum charger_control_flag {
 
 #define HTC_BATT_CHG_LIMIT_BIT_TALK		(1)
 #define HTC_BATT_CHG_LIMIT_BIT_NAVI		(1<<1)
+#define HTC_BATT_CHG_LIMIT_BIT_THRML        (1<<2)
 
 enum batt_context_event {
 	EVENT_TALK_START = 0,
