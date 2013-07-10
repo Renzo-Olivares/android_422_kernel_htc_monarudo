@@ -74,6 +74,7 @@ static int suspend_highfreq_check_reason;
 #define CONTEXT_STATE_BIT_TALK			(1)
 #define CONTEXT_STATE_BIT_SEARCH		(1<<1)
 #define CONTEXT_STATE_BIT_NAVIGATION	(1<<2)
+#define CONTEXT_STATE_BIT_DAYDREAM    (1<<3)
 static int context_state;
 
 #define STATE_WORKQUEUE_PENDING			(1)
@@ -736,6 +737,16 @@ static int htc_batt_context_event_handler(enum batt_context_event event)
 			goto exit;
 		context_state &= ~CONTEXT_STATE_BIT_NAVIGATION;
 		break;
+        case EVENT_DAYDREAM_START:
+                if (context_state & CONTEXT_STATE_BIT_DAYDREAM)
+                      goto exit;
+                context_state |= CONTEXT_STATE_BIT_DAYDREAM;
+                break;
+        case EVENT_DAYDREAM_STOP:
+                if (!(context_state & CONTEXT_STATE_BIT_DAYDREAM))
+                        goto exit;
+                context_state &= ~CONTEXT_STATE_BIT_DAYDREAM;
+                break;
 	default:
 		pr_warn("unsupported context event (%d)\n", event);
 		goto exit;
@@ -1306,6 +1317,26 @@ static void batt_level_adjust(unsigned long time_since_last_update_ms)
 		critical_low_enter = 0;
 	}
 	first = 0;
+}
+
+static void batt_update_limited_charge(void)
+{
+	if ((htc_batt_info.state & STATE_EARLY_SUSPEND)
+		|| (context_state & CONTEXT_STATE_BIT_DAYDREAM)) {
+		
+		set_limit_charge_with_reason(false, HTC_BATT_CHG_LIMIT_BIT_THRML);
+	} else {
+		
+		if ((!(chg_limit_reason & HTC_BATT_CHG_LIMIT_BIT_THRML)) &&
+				htc_batt_info.rep.batt_temp > 390) {
+			set_limit_charge_with_reason(true, HTC_BATT_CHG_LIMIT_BIT_THRML);
+		} else if ((chg_limit_reason & HTC_BATT_CHG_LIMIT_BIT_THRML) &&
+				htc_batt_info.rep.batt_temp <= 370) {
+			set_limit_charge_with_reason(false, HTC_BATT_CHG_LIMIT_BIT_THRML);
+		} else {
+			
+		}
+	}
 }
 
 void update_htc_extension_state(void)
