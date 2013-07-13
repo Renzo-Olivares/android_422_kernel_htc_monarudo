@@ -3649,7 +3649,7 @@ CONFIG_HTC_NETWORK_MODIFY=y
 CONFIG_CGROUP_TIMER_SLACK=y
 
 # For nonsmd packet filter feature
-CONFIG_MSM_NONSMD_PACKET_FILTER=y
+# CONFIG_MSM_NONSMD_PACKET_FILTER is not set
 # For network packet monitor
 CONFIG_HTC_MONITOR=y
 # For power off mdm if device in offmode charging
