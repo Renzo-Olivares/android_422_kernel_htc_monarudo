@@ -798,6 +798,13 @@ int htc_battery_core_update_changed(void)
 			battery_over_loading = 0;
 	}
 
+	if (battery_core_info.func.func_notify_pnpmgr_charging_enabled) {
+		if (battery_core_info.rep.charging_enabled !=
+				new_batt_info_rep.charging_enabled)
+			battery_core_info.func.func_notify_pnpmgr_charging_enabled(
+										new_batt_info_rep.charging_enabled);
+	}
+
 	memcpy(&battery_core_info.rep, &new_batt_info_rep, sizeof(struct battery_info_reply));
 
 	if (battery_core_info.rep.batt_temp > 680) {
@@ -943,6 +950,9 @@ int htc_battery_core_register(struct device *dev,
 	if (htc_battery->func_set_full_level)
 		battery_core_info.func.func_set_full_level =
 					htc_battery->func_set_full_level;
+	if (htc_battery->func_notify_pnpmgr_charging_enabled)
+		battery_core_info.func.func_notify_pnpmgr_charging_enabled =
+					htc_battery->func_notify_pnpmgr_charging_enabled;
 
 	
 	for (i = 0; i < ARRAY_SIZE(htc_power_supplies); i++) {
