@@ -156,6 +156,7 @@ struct htc_battery_info {
 	struct htc_battery_cell *bcell;
 	int state;
 	unsigned int htc_extension;	
+	int (*get_thermal_sensor_temp)(int sensor_num, unsigned long *temp);
 };
 static struct htc_battery_info htc_batt_info;
 
@@ -1825,7 +1826,7 @@ static int htc_battery_prepare(struct device *dev)
 	ktime_t slack = ktime_set(0, 0);
 	ktime_t next_alarm;
 	struct timespec xtime;
-	unsigned long cur_jiffies;
+	unsigned long cur_jiffies, sensor0_temp = 0;
 	s64 next_alarm_sec = 0;
 	int check_time = 0;
 
@@ -1838,6 +1839,9 @@ static int htc_battery_prepare(struct device *dev)
 	htc_batt_timer.batt_suspend_ms = xtime.tv_sec * MSEC_PER_SEC +
 					xtime.tv_nsec / NSEC_PER_MSEC;
 
+	if (htc_batt_info.get_thermal_sensor_temp)
+		htc_batt_info.get_thermal_sensor_temp(0, &sensor0_temp);
+
 	if (suspend_highfreq_check_reason)
 		check_time = BATT_SUSPEND_HIGHFREQ_CHECK_TIME;
 	else
@@ -1848,17 +1852,21 @@ static int htc_battery_prepare(struct device *dev)
 	
 	if (next_alarm_sec <= 1) {
 		BATT_LOG("%s: passing time:%lu ms, trigger batt_work immediately."
-			"(suspend_highfreq_check_reason=0x%x)", __func__,
-			htc_batt_timer.total_time_ms,
-			suspend_highfreq_check_reason);
+			"(suspend_highfreq_check_reason=0x%x),"
+                        "sensor0_temp=%lu",
+                        __func__, htc_batt_timer.total_time_ms,
+			suspend_highfreq_check_reason, 
+                        sensor0_temp);
 		htc_batt_schedule_batt_info_update();
 		return -EBUSY;
 	}
 
 	BATT_LOG("%s: passing time:%lu ms, alarm will be triggered after %lld sec."
-		"(suspend_highfreq_check_reason=0x%x, htc_batt_info.state=0x%x)",
+		"(suspend_highfreq_check_reason=0x%x, htc_batt_info.state=0x%x), "
+		"sensor0_temp=%lu",
 		__func__, htc_batt_timer.total_time_ms, next_alarm_sec,
-		suspend_highfreq_check_reason, htc_batt_info.state);
+		suspend_highfreq_check_reason, htc_batt_info.state,
+		sensor0_temp);
 
 	next_alarm = ktime_add(alarm_get_elapsed_realtime(), interval);
 	alarm_start_range(&htc_batt_timer.batt_check_wakeup_alarm,
@@ -1871,7 +1879,7 @@ static void htc_battery_complete(struct device *dev)
 {
 	unsigned long resume_ms;
 	unsigned long sr_time_period_ms;
-	unsigned long check_time;
+	unsigned long check_time, sensor0_temp = 0;
 	struct timespec xtime;
 
 	htc_batt_info.state &= ~STATE_PREPARE;
@@ -1881,10 +1889,13 @@ static void htc_battery_complete(struct device *dev)
 	sr_time_period_ms = resume_ms - htc_batt_timer.batt_suspend_ms;
 	htc_batt_timer.total_time_ms += sr_time_period_ms;
 
+	if (htc_batt_info.get_thermal_sensor_temp)
+		htc_batt_info.get_thermal_sensor_temp(0, &sensor0_temp);
+
 	BATT_LOG("%s: sr_time_period=%lu ms; total passing time=%lu ms."
-			"htc_batt_info.state=0x%x",
+			"htc_batt_info.state=0x%x, sensor0_temp=%lu",
 			__func__, sr_time_period_ms, htc_batt_timer.total_time_ms,
-			htc_batt_info.state);
+			htc_batt_info.state, sensor0_temp);
 
 	if (suspend_highfreq_check_reason)
 		check_time = BATT_SUSPEND_HIGHFREQ_CHECK_TIME * MSEC_PER_SEC;
@@ -1952,6 +1963,8 @@ static int htc_battery_probe(struct platform_device *pdev)
 	htc_battery_core_ptr->func_set_full_level = htc_batt_set_full_level;
 	htc_battery_core_ptr->func_context_event_handler =
 											htc_batt_context_event_handler;
+	htc_battery_core_ptr->func_notify_pnpmgr_charging_enabled =
+										pdata->notify_pnpmgr_charging_enabled;
 
 	htc_battery_core_register(&pdev->dev, htc_battery_core_ptr);
 
@@ -1975,6 +1988,8 @@ static int htc_battery_probe(struct platform_device *pdev)
 	chg_limit_active_mask = pdata->chg_limit_active_mask;
 	htc_batt_info.igauge = &pdata->igauge;
 	htc_batt_info.icharger = &pdata->icharger;
+	htc_batt_info.get_thermal_sensor_temp = pdata->get_thermal_sensor_temp;
+
 #if 0
 	htc_batt_info.mpp_config = &pdata->mpp_data;
 #endif
