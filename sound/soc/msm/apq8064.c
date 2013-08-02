@@ -549,7 +549,6 @@ static void msm_ext_spk_power_amp_on(u32 spk)
 
 		if ((msm_ext_bottom_spk_pamp & BOTTOM_SPK_AMP_POS) &&
 			(msm_ext_bottom_spk_pamp & BOTTOM_SPK_AMP_NEG)) {
-#if 0
 			
 			pr_info("hs amp on++");
                         if(query_tpa6185()) {
@@ -560,7 +559,6 @@ static void msm_ext_spk_power_amp_on(u32 spk)
                         if(query_rt5501())
                             set_rt5501_amp(1);
 			pr_info("hs amp on--");
-#endif
 			pr_debug("%s: slepping 4 ms after turning on external "
 				" Bottom Speaker Ampl\n", __func__);
 			usleep_range(4000, 4000);
@@ -645,7 +643,6 @@ static void msm_ext_spk_power_amp_off(u32 spk)
 
 		if (!msm_ext_bottom_spk_pamp)
 			return;
-#if 0
 		
 		pr_info("hs amp off ++");
                 if(query_tpa6185()) {
@@ -656,7 +653,6 @@ static void msm_ext_spk_power_amp_off(u32 spk)
                 if(query_rt5501())
                     set_rt5501_amp(0);
 		pr_info("hs amp off --");
-#endif
 		msm_ext_bottom_spk_pamp = 0;
 
 		pr_debug("%s: sleeping 4 ms after turning off external Bottom"

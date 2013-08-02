@@ -34,7 +34,12 @@ static int monarudo_get_hw_component(void)
 {
     int hw_com = 0;
 
+    if(query_tpa6185())
+        hw_com |= HTC_AUDIO_TPA6185;
+
+    if(query_rt5501())
     hw_com |= HTC_AUDIO_RT5501;
+
     return hw_com;
 }
 
