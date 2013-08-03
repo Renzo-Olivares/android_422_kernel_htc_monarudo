@@ -429,7 +429,7 @@ static void ib_parse_type0(struct kgsl_device *device, unsigned int *ptr,
 	}
 }
 
-static inline int parse_ib(struct kgsl_device *device, unsigned int ptbase,
+static int parse_ib(struct kgsl_device *device, unsigned int ptbase,
 		unsigned int gpuaddr, unsigned int dwords);
 
 
@@ -495,7 +495,7 @@ done:
 	return ret;
 }
 
-static inline int parse_ib(struct kgsl_device *device, unsigned int ptbase,
+static int parse_ib(struct kgsl_device *device, unsigned int ptbase,
 		unsigned int gpuaddr, unsigned int dwords)
 {
 	unsigned int ib1base, ib2base;
