@@ -903,6 +903,16 @@ static ssize_t htc_battery_show_cc_attr(struct device_attribute *attr,
 	return len;
 }
 
+static int htc_batt_set_max_input_current(int target_ma)
+{
+    if(htc_batt_info.icharger && htc_batt_info.icharger->max_input_current) {
+      htc_batt_info.icharger->max_input_current(target_ma);
+      return 0;
+    }
+    else
+      return -1;
+}
+
 static ssize_t htc_battery_show_htc_extension_attr(struct device_attribute *attr,
 					char *buf)
 {
@@ -1961,6 +1971,7 @@ static int htc_battery_probe(struct platform_device *pdev)
 	htc_battery_core_ptr->func_get_battery_info = htc_batt_get_battery_info;
 	htc_battery_core_ptr->func_charger_control = htc_batt_charger_control;
 	htc_battery_core_ptr->func_set_full_level = htc_batt_set_full_level;
+        htc_battery_core_ptr->func_set_max_input_current = htc_batt_set_max_input_current;
 	htc_battery_core_ptr->func_context_event_handler =
 											htc_batt_context_event_handler;
 	htc_battery_core_ptr->func_notify_pnpmgr_charging_enabled =

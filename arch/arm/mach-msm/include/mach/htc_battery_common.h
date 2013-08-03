@@ -64,5 +64,6 @@ enum batt_context_event {
 int htc_battery_charger_disable(void);
 int htc_battery_pwrsrc_disable(void);
 int htc_battery_get_zcharge_mode(void);
+int htc_battery_set_max_input_current(int target_ma);
 
 #endif

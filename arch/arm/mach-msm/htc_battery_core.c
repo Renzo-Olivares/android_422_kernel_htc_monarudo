@@ -295,6 +295,21 @@ int htc_battery_charger_disable()
 	return rc;
 }
 
+int htc_battery_set_max_input_current(int target_ma)
+{
+  int rc = 0;
+
+  if (!battery_core_info.func.func_set_max_input_current) {
+    BATT_ERR("No max input current function!");
+    return -ENOENT;
+  }
+  rc = battery_core_info.func.func_set_max_input_current(target_ma);
+  if (rc < 0)
+    BATT_ERR("max input current control failed!");
+
+  return rc;
+}
+
 int htc_battery_pwrsrc_disable()
 {
 	int rc = 0;
@@ -957,6 +972,9 @@ int htc_battery_core_register(struct device *dev,
 	if (htc_battery->func_charger_control)
 		battery_core_info.func.func_charger_control =
 					htc_battery->func_charger_control;
+        if (htc_battery->func_set_max_input_current)
+                battery_core_info.func.func_set_max_input_current =
+                                        htc_battery->func_set_max_input_current;
 	if (htc_battery->func_context_event_handler)
 		battery_core_info.func.func_context_event_handler =
 					htc_battery->func_context_event_handler;
