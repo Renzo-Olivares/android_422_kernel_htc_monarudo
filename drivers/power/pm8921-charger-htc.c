@@ -272,11 +272,6 @@ struct pm8921_chg_chip {
 	struct delayed_work		update_heartbeat_work;
 	struct delayed_work		eoc_work;
 	struct delayed_work		recharge_check_work;
-<<<<<<< HEAD
-	struct work_struct		chghot_work;
-=======
-	struct work_struct		unplug_ovp_fet_open_work;
->>>>>>> ee55e7e... fix usb like a bawse =)
 	struct delayed_work		unplug_check_work;
 	struct delayed_work		vin_collapse_check_work;
 	struct wake_lock		unplug_ovp_fet_open_wake_lock;
@@ -2340,7 +2335,6 @@ int pm8921_regulate_input_voltage(int voltage)
 #define USB_OV_THRESHOLD_SHIFT  5
 int pm8921_usb_ovp_set_threshold(enum pm8921_usb_ov_threshold ov)
 {
-<<<<<<< HEAD
 	int ichg_meas_ua, vbat_uv;
 	int ichg_meas_ma;
 	int adj_vdd_max_mv, programmed_vdd_max, target_vdd_max;
@@ -2427,10 +2421,6 @@ int pm8921_usb_ovp_set_threshold(enum pm8921_usb_ov_threshold ov)
 {
 	u8 temp;
 
-=======
-	u8 temp;
-
->>>>>>> ee55e7e... fix usb like a bawse =)
 	if (!the_chip) {
 		pr_err("called before init\n");
 		return -EINVAL;
@@ -5274,11 +5264,7 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 	else
 		chip->wlc_tx_gpio = 0;
 	chip->is_embeded_batt = pdata->is_embeded_batt;
-<<<<<<< HEAD
 	chip->eoc_ibat_thre_ma = pdata->eoc_ibat_thre_ma;
-=======
-
->>>>>>> ee55e7e... fix usb like a bawse =)
 	chip->cold_thr = pdata->cold_thr;
 	chip->hot_thr = pdata->hot_thr;
 
