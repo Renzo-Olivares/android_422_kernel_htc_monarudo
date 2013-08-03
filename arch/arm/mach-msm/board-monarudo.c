@@ -120,11 +120,7 @@
 
 #define MSM_PMEM_ADSP_SIZE         0x8600000
 #define MSM_PMEM_AUDIO_SIZE        0x4CF000
-#ifdef CONFIG_FB_MSM_HDMI_AS_PRIMARY
-#define MSM_PMEM_SIZE 0x8200000 
-#else
-#define MSM_PMEM_SIZE 0x8200000 
-#endif
+#define MSM_PMEM_SIZE              0x0 
 
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 #define HOLE_SIZE		0x20000
@@ -134,7 +130,7 @@
 #define MSM_PMEM_KERNEL_EBI1_SIZE  0x6400000
 #endif
 
-#define MSM_ION_KGSL_SIZE	0x6400000
+#define MSM_ION_KGSL_SIZE	0x0
 #define MSM_ION_SF_SIZE		(MSM_PMEM_SIZE + MSM_ION_KGSL_SIZE)
 #define MSM_ION_MM_FW_SIZE	(0x200000 - HOLE_SIZE) 
 #define MSM_ION_MM_SIZE		MSM_PMEM_ADSP_SIZE
@@ -869,6 +865,7 @@ static struct htc_battery_platform_data htc_battery_pdev_data = {
 	.critical_alarm_voltage_mv = 3000,
 	.overload_vol_thr_mv = 4000,
 	.overload_curr_thr_ma = 0,
+	.smooth_chg_full_delay_min = 1,
 	
 	.icharger.name = "pm8921",
 	.icharger.get_charging_source = pm8921_get_charging_source,
@@ -1045,6 +1042,8 @@ struct pm8921_bms_battery_data  bms_battery_data_id_1 = {
 	.rbatt_sf_lut		= &rbatt_sf_id_1,
 	.default_rbatt_mohm	= 250,
 	.delta_rbatt_mohm	= 0,
+	.level_ocv_update_stop_begin	= 10,
+	.level_ocv_update_stop_end		= 20,
 };
 
 
@@ -1147,6 +1146,8 @@ struct pm8921_bms_battery_data  bms_battery_data_id_2 = {
 	.rbatt_sf_lut		= &rbatt_sf_id_2,
 	.default_rbatt_mohm	= 180,
 	.delta_rbatt_mohm	= 0,
+	.level_ocv_update_stop_begin	= 10,
+	.level_ocv_update_stop_end		= 20,
 };
 
 static struct htc_battery_cell htc_battery_cells[] = {
@@ -2346,7 +2347,7 @@ static struct synaptics_i2c_rmi_platform_data syn_ts_3k_data[] = {
 		.report_type = SYN_AND_REPORT_TYPE_B,
 		.large_obj_check = 1,
 		.tw_pin_mask = 0x0080,
-		.reduce_report_level = {90, 90, 50, 0, 0},
+                .reduce_report_level = {60, 60, 50, 0, 0},
 		.config = {0x33, 0x32, 0x00, 0x03, 0x04, 0x7F, 0x03, 0x1E,
 			0x05, 0x09, 0x00, 0x01, 0x01, 0x00, 0x10, 0x54,
 			0x06, 0x40, 0x0B, 0x02, 0x14, 0x23, 0x05, 0x50,
@@ -2875,9 +2876,10 @@ static struct cm3629_platform_data cm36282_pdata = {
 	.ps1_thd_set = 0x15,
 	.ps1_thd_no_cal = 0xF1,
 	.ps1_thd_with_cal = 0xD,
+	.ps_th_add = 5,
 	.ps_calibration_rule = 1,
-	.ps_conf1_val = CM3629_PS_DR_1_80 | CM3629_PS_IT_1_6T |
-			CM3629_PS1_PERS_3,
+	.ps_conf1_val = CM3629_PS_DR_1_40 | CM3629_PS_IT_1_6T |
+			CM3629_PS1_PERS_2,
 	.ps_conf2_val = CM3629_PS_ITB_1 | CM3629_PS_ITR_1 |
 			CM3629_PS2_INT_DIS | CM3629_PS1_INT_DIS,
 	.ps_conf3_val = CM3629_PS2_PROL_32,
@@ -4160,6 +4162,7 @@ static struct platform_device *common_devices[] __initdata = {
 #endif
 	&apq_compr_dsp,
 	&apq_multi_ch_pcm,
+	&apq_lowlatency_pcm,
 };
 
 static struct platform_device *cdp_devices[] __initdata = {
@@ -4941,3 +4944,4 @@ MACHINE_START(MONARUDO, "UNKNOWN")
 	.init_very_early = monarudo_early_reserve,
 	.restart = msm_restart,
 MACHINE_END
+
