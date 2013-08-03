@@ -58,7 +58,11 @@ obj-$(CONFIG_MSM_JTAG) += jtag.o
 msm-etm-objs := etm.o
 obj-$(CONFIG_MSM_ETM) += msm-etm.o
 
+ifdef CONFIG_MSM_NONSMD_PACKET_FILTER
+obj-$(CONFIG_MSM_SMD) += htc_port_list_lte.o
+else
 obj-$(CONFIG_MSM_SMD) += htc_port_list.o
+endif
 
 quiet_cmd_mkrpcsym = MKCAP   $@
       cmd_mkrpcsym = $(PERL) $(srctree)/$(src)/mkrpcsym.pl $< $@
