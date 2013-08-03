@@ -118,7 +118,7 @@
 #include <linux/pm_qos.h>
 #endif
 
-#define MSM_PMEM_ADSP_SIZE         0x8600000
+#define MSM_PMEM_ADSP_SIZE         0x7800000
 #define MSM_PMEM_AUDIO_SIZE        0x4CF000
 #ifdef CONFIG_FB_MSM_HDMI_AS_PRIMARY
 #define MSM_PMEM_SIZE 0x8200000 
@@ -227,8 +227,6 @@ enum {
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
 int set_two_phase_freq(int cpufreq);
 #endif
-
-int set_input_event_min_freq_by_cpu(int cpu_nr, int cpufreq);
 
 #ifdef CONFIG_KERNEL_PMEM_EBI_REGION
 static unsigned pmem_kernel_ebi1_size = MSM_PMEM_KERNEL_EBI1_SIZE;
@@ -844,9 +842,6 @@ static void __init monarudo_early_reserve(void)
 }
 
 #ifdef CONFIG_HTC_BATT_8960
-#ifdef CONFIG_HTC_PNPMGR
-extern int pnpmgr_battery_charging_enabled(int charging_enabled);
-#endif 
 static int pm8921_is_wireless_charger(void)
 {
 	int usb_in, dc_in;
@@ -863,8 +858,7 @@ static int pm8921_is_wireless_charger(void)
 static struct htc_battery_platform_data htc_battery_pdev_data = {
 	.guage_driver = 0,
 	.chg_limit_active_mask = HTC_BATT_CHG_LIMIT_BIT_TALK |
-								HTC_BATT_CHG_LIMIT_BIT_NAVI |
-								HTC_BATT_CHG_LIMIT_BIT_THRML,
+								HTC_BATT_CHG_LIMIT_BIT_NAVI,
 	.critical_low_voltage_mv = 3100,
 	.critical_alarm_voltage_mv = 3000,
 	.overload_vol_thr_mv = 4000,
@@ -902,14 +896,6 @@ static struct htc_battery_platform_data htc_battery_pdev_data = {
 	.igauge.enable_lower_voltage_alarm = pm8xxx_batt_lower_alarm_enable,
 	.igauge.set_lower_voltage_alarm_threshold =
 						pm8xxx_batt_lower_alarm_threshold_set,
-
-#ifdef CONFIG_THERMAL_TSENS8960
-	.get_thermal_sensor_temp = tsens_get_sensor_temp,
-#endif
-	
-#ifdef CONFIG_HTC_PNPMGR
-	.notify_pnpmgr_charging_enabled = pnpmgr_battery_charging_enabled,
-#endif 
 };
 static struct platform_device htc_battery_pdev = {
 	.name = "htc_battery",
@@ -3170,8 +3156,6 @@ static struct mdm_platform_data mdm_platform_data = {
 static struct tsens_platform_data apq_tsens_pdata  = {
 		.tsens_factor		= 1000,
 		.hw_type		= APQ_8064,
-		.patherm0               = -1,
-		.patherm1               = -1,
 		.tsens_num_sensor	= 11,
 		.slope = {1176, 1176, 1154, 1176, 1111,
 			1132, 1132, 1199, 1132, 1199, 1132},
@@ -3185,30 +3169,10 @@ static struct platform_device msm_tsens_device = {
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 0,
 	.poll_ms = 1000,
-	.limit_temp = 51,
+	.limit_temp = 55,
 	.temp_hysteresis = 10,
 	.limit_freq = 918000,
 };
-
-static int __init check_dq_setup(char *str)
-{
-	int i = 0;
-	int size = 0;
-
-	size = sizeof(chg_batt_params)/sizeof(chg_batt_params[0]);
-
-	if (!strcmp(str, "PASS")) {
-		
-	} else {
-		for(i=0; i < size; i++)
-		{
-			chg_batt_params[i].max_voltage = 4200;
-			chg_batt_params[i].cool_bat_voltage = 4200;
-		}
-	}
-	return 1;
-}
-__setup("androidboot.dq=", check_dq_setup);
 
 #define MSM_SHARED_RAM_PHYS 0x80000000
 static void __init monarudo_map_io(void)
@@ -3277,49 +3241,49 @@ static struct msm_rpmrs_level msm_rpmrs_levels[] = {
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE,
 		MSM_RPMRS_LIMITS(ON, ACTIVE, MAX, ACTIVE),
 		true,
-		1300, 228, 1200000, 3212,
+		1300, 228, 1200000, 2152,
 	},
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, GDHS, MAX, ACTIVE),
 		false,
-		2000, 138, 1208400, 9152,
+		2000, 138, 1208400, 3352,
 	},
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(ON, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
-		6000, 119, 1850300, 10212,
+		6000, 119, 1850300, 9152,
 	},
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(OFF, GDHS, MAX, ACTIVE),
 		false,
-		9200, 68, 2839200, 17612,
+		9200, 68, 2839200, 16552,
 	},
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(OFF, HSFS_OPEN, MAX, ACTIVE),
 		false,
-		10300, 63, 3128000, 19412,
+		10300, 63, 3128000, 18352,
 	},
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(OFF, HSFS_OPEN, ACTIVE, RET_HIGH),
 		false,
-		18000, 10, 4602600, 28212,
+		18000, 10, 4602600, 27152,
 	},
 
 	{
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE,
 		MSM_RPMRS_LIMITS(OFF, HSFS_OPEN, RET_HIGH, RET_LOW),
 		false,
-		20000, 2, 5752000, 33212,
+		20000, 2, 5752000, 32152,
 	},
 };
 
@@ -3553,6 +3517,40 @@ static struct msm_spm_seq_entry msm_spm_seq_list[] __initdata = {
 	},
 };
 
+#ifdef CONFIG_PERFLOCK
+static unsigned dlx_perf_acpu_table[] = {
+	594000000, 
+	810000000, 
+	1026000000, 
+	1134000000,
+	1512000000, 
+};
+
+static struct perflock_data dlx_floor_data = {
+	.perf_acpu_table = dlx_perf_acpu_table,
+	.table_size = ARRAY_SIZE(dlx_perf_acpu_table),
+};
+
+static struct perflock_data dlx_cpufreq_ceiling_data = {
+	.perf_acpu_table = dlx_perf_acpu_table,
+	.table_size = ARRAY_SIZE(dlx_perf_acpu_table),
+};
+
+static struct perflock_pdata perflock_pdata = {
+	.perf_floor = &dlx_floor_data,
+	.perf_ceiling = &dlx_cpufreq_ceiling_data,
+};
+
+struct platform_device msm8064_device_perf_lock = {
+	.name = "perf_lock",
+	.id = -1,
+	.dev = {
+		.platform_data = &perflock_pdata,
+	},
+};
+
+#endif
+
 static uint8_t l2_spm_wfi_cmd_sequence[] __initdata = {
 	0x00, 0x20, 0x03, 0x20,
 	0x00, 0x0f,
@@ -3589,11 +3587,12 @@ static struct msm_spm_seq_entry msm_spm_l2_seq_list[] __initdata = {
 	},
 };
 
+
 static struct msm_spm_platform_data msm_spm_l2_data[] __initdata = {
 	[0] = {
 		.reg_base_addr = MSM_SAW_L2_BASE,
 		.reg_init_values[MSM_SPM_REG_SAW2_SPM_CTL] = 0x00,
-		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02070207,
+		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02020205,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_0] = 0x00A000AE,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_1] = 0x00A00020,
 		.modes = msm_spm_l2_seq_list,
@@ -3610,7 +3609,7 @@ static struct msm_spm_platform_data msm_spm_data[] __initdata = {
 		.reg_init_values[MSM_SPM_REG_SAW2_AVS_HYSTERESIS] = 0x00,
 #endif
 		.reg_init_values[MSM_SPM_REG_SAW2_SPM_CTL] = 0x01,
-		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02070207,
+		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02020205,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_0] = 0x0060009C,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_1] = 0x0000001C,
 		.vctl_timeout_us = 50,
@@ -3625,7 +3624,7 @@ static struct msm_spm_platform_data msm_spm_data[] __initdata = {
 		.reg_init_values[MSM_SPM_REG_SAW2_AVS_HYSTERESIS] = 0x00,
 #endif
 		.reg_init_values[MSM_SPM_REG_SAW2_SPM_CTL] = 0x01,
-		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02070207,
+		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02020205,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_0] = 0x0060009C,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_1] = 0x0000001C,
 		.vctl_timeout_us = 50,
@@ -3640,7 +3639,7 @@ static struct msm_spm_platform_data msm_spm_data[] __initdata = {
 		.reg_init_values[MSM_SPM_REG_SAW2_AVS_HYSTERESIS] = 0x00,
 #endif
 		.reg_init_values[MSM_SPM_REG_SAW2_SPM_CTL] = 0x01,
-		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02070207,
+		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02020205,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_0] = 0x0060009C,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_1] = 0x0000001C,
 		.vctl_timeout_us = 50,
@@ -3655,7 +3654,7 @@ static struct msm_spm_platform_data msm_spm_data[] __initdata = {
 		.reg_init_values[MSM_SPM_REG_SAW2_AVS_HYSTERESIS] = 0x00,
 #endif
 		.reg_init_values[MSM_SPM_REG_SAW2_SPM_CTL] = 0x01,
-		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02070207,
+		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DLY] = 0x02020205,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_0] = 0x0060009C,
 		.reg_init_values[MSM_SPM_REG_SAW2_PMIC_DATA_1] = 0x0000001C,
 		.vctl_timeout_us = 50,
@@ -3874,12 +3873,12 @@ static int hdmi_enable_5v(int on);
 static int hdmi_core_power(int on, int show);
 
 static mhl_driving_params monarudo_driving_params[] = {
-  {.format = HDMI_VFRMT_640x480p60_4_3,  .reg_a3=0xFE, .reg_a6=0x0C},
-  {.format = HDMI_VFRMT_720x480p60_16_9,  .reg_a3=0xFE, .reg_a6=0x0C},
-  {.format = HDMI_VFRMT_1280x720p60_16_9,  .reg_a3=0xFE, .reg_a6=0x0C},
-  {.format = HDMI_VFRMT_720x576p50_16_9,  .reg_a3=0xFE, .reg_a6=0x0C},
-  {.format = HDMI_VFRMT_1920x1080p24_16_9, .reg_a3=0xFE, .reg_a6=0x0C},
-  {.format = HDMI_VFRMT_1920x1080p30_16_9, .reg_a3=0xFE, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_640x480p60_4_3,	.reg_a3=0xFE, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_720x480p60_16_9,	.reg_a3=0xFE, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_1280x720p60_16_9,	.reg_a3=0xFE, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_720x576p50_16_9,	.reg_a3=0xFE, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_1920x1080p24_16_9, .reg_a3=0xFE, .reg_a6=0x0C},
+	{.format = HDMI_VFRMT_1920x1080p30_16_9, .reg_a3=0xFE, .reg_a6=0x0C},
 };
 
 static struct msm_hdmi_platform_data hdmi_msm_data = {
@@ -4010,18 +4009,18 @@ static struct ramdump_platform_data ramdump_data_2G = {
 	.count = 1,
 	.region = {
 		{
-			.start	= 0x90000000,
-			.size	= 0x70000000,
+			.start	= 0xA0000000,
+			.size	= 0x60000000,
 		},
 	}
 };
 
-static struct ramdump_platform_data ramdump_data_1G = {
+static struct ramdump_platform_data ramdump_data_128M = {
 	.count = 1,
 	.region = {
 		{
-			.start	= 0x90000000,
-			.size	= 0x30000000,
+			.start	= 0xA0000000,
+			.size	= 0x8000000,
 		},
 	}
 };
@@ -4029,11 +4028,11 @@ static struct ramdump_platform_data ramdump_data_1G = {
 struct platform_device device_htc_ramdump = {
 	.name		= "htc_ramdump",
 	.id		= 0,
-	.dev = {.platform_data = &ramdump_data_1G},
+	.dev = {.platform_data = &ramdump_data_128M},
 };
 
 static struct platform_device *common_devices[] __initdata = {
-	&msm8064_device_acpuclk,
+	&msm8960_device_acpuclk,
 	&ram_console_device,
 	&apq8064_device_dmov,
 	&apq8064_device_qup_i2c_gsbi1,
@@ -4133,9 +4132,7 @@ static struct platform_device *common_devices[] __initdata = {
 #ifdef CONFIG_MSM_RTB
 	&monarudo_rtb_device,
 #endif
-#ifdef CONFIG_MSM_GEMINI
 	&msm8960_gemini_device,
-#endif
 #ifdef CONFIG_BT
 	&msm_device_uart_dm6,
 	&monarudo_rfkill,
@@ -4428,8 +4425,8 @@ static int monarudo_mpu3050_sensor_power_LPM(int on)
 
 static struct mpu3050_platform_data mpu3050_data = {
 	.int_config = 0x10,
-        .orientation = { -1, 0,  0,
-                          0, 1,  0,
+	.orientation = { -1, 0,  0,
+			  0, 1,  0,
 			  0, 0, -1 },
 	.level_shifter = 0,
 
@@ -4438,9 +4435,9 @@ static struct mpu3050_platform_data mpu3050_data = {
 		.adapt_num = MSM8064_GSBI2_QUP_I2C_BUS_ID, 
 		.bus = EXT_SLAVE_BUS_SECONDARY,
 		.address = 0x30 >> 1,
-                .orientation = { -1, 0,  0,
-                                  0, 1,  0,
-                                  0, 0, -1 },
+			.orientation = { -1, 0,  0,
+					  0, 1,  0,
+					  0, 0, -1 },
 
 	},
 	.compass = {
@@ -4677,12 +4674,12 @@ static void __init monarudo_common_init(void)
 	if (system_rev <= XC)
 		clk_ignor_list_add("msm_sdcc.3", "core_clk", &apq8064_clock_init_data);
 	else if (system_rev >= XD)
-		clk_ignor_list_add("msm_sdcc.3", "core_clk", &apq8064_clock_init_data_r2);
+		clk_ignor_list_add("msm_sdcc.3", "core_clk", &monarudo_clock_init_data_xd);
 	
 	if ( system_rev <= XC )
 	msm_clock_init(&apq8064_clock_init_data);
 	else if ( system_rev >= XD )
-		msm_clock_init(&apq8064_clock_init_data_r2);
+		msm_clock_init(&monarudo_clock_init_data_xd);
 	monarudo_init_gpiomux();
 #ifdef CONFIG_RESET_BY_CABLE_IN
 	pr_info("[CABLE] Enable Ac Reset Function.(%d) \n", system_rev);
@@ -4697,6 +4694,7 @@ static void __init monarudo_common_init(void)
 		gpio_set_value(AC_WDT_RST_XC, 1);
 	}
 #endif
+
 	
 	if (system_rev == XB)
 		nfc_platform_data.firm_gpio = PM8921_GPIO_PM_TO_SYS(NFC_DL_MODE_XA_XB);
@@ -4760,7 +4758,6 @@ static void __init monarudo_common_init(void)
         platform_device_register(&vibrator_pwm_device_XD);
 
 	apq8064_device_hsic_host.dev.platform_data = &msm_hsic_pdata;
-	msm_hsic_pdata.swfi_latency = msm_rpmrs_levels[0].latency_us;
 	device_initialize(&apq8064_device_hsic_host.dev);
 	monarudo_pm8xxx_gpio_mpp_init();
 	monarudo_init_mmc();
@@ -4860,10 +4857,6 @@ static void __init monarudo_cdp_init(void)
         if(!cpu_is_krait_v1())
                 set_two_phase_freq(1134000);
 #endif
-	set_input_event_min_freq_by_cpu(1, 1134000);
-	set_input_event_min_freq_by_cpu(2, 1026000);
-	set_input_event_min_freq_by_cpu(3, 810000);
-	set_input_event_min_freq_by_cpu(4, 810000);
 
 	
 	
@@ -4898,8 +4891,6 @@ static void __init monarudo_cdp_init(void)
 
 #define DDR_1GB_SIZE      (1024 * 1024 * 1024)
 
-int __init parse_tag_memsize(const struct tag *tags);
-static unsigned int mem_size_mb;
 
 
 static void __init monarudo_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
