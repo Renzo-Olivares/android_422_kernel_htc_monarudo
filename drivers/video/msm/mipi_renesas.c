@@ -1251,8 +1251,34 @@ err_device_put:
 
 static int mipi_renesas_lcd_init(void)
 {
+	int ret;
+
 	mipi_dsi_buf_alloc(&renesas_tx_buf, DSI_BUF_SIZE);
 	mipi_dsi_buf_alloc(&renesas_rx_buf, DSI_BUF_SIZE);
+	ret = i2c_add_driver(&pwm_i2c_driver);
+
+	if (ret)
+		pr_err(KERN_ERR "%s: failed to add i2c driver\n", __func__);
+
+	if (panel_type == PANEL_ID_DLX_SHARP_RENESAS ) {
+		renesas_video_on_cmds = sharp_video_on_cmds;
+		renesas_display_off_cmds = sharp_display_off_cmds;
+		renesas_video_on_cmds_count = ARRAY_SIZE(sharp_video_on_cmds);
+		renesas_display_off_cmds_count =ARRAY_SIZE(sharp_display_off_cmds);
+		PR_DISP_INFO("panel_type = PANEL_ID_DLX_SHARP_RENESAS");
+	} else if (panel_type == PANEL_ID_DLX_SONY_RENESAS ) {
+		renesas_video_on_cmds = sony_video_on_cmds;
+		renesas_display_off_cmds = sony_display_off_cmds;
+		renesas_video_on_cmds_count = ARRAY_SIZE(sony_video_on_cmds);
+		renesas_display_off_cmds_count =ARRAY_SIZE(sony_display_off_cmds);
+		PR_DISP_INFO("panel_type = PANEL_ID_DLX_SONY_RENESAS");
+	} else {
+		renesas_video_on_cmds = sharp_video_on_cmds;
+		renesas_display_off_cmds = sharp_display_off_cmds;
+		renesas_video_on_cmds_count = ARRAY_SIZE(sharp_video_on_cmds);
+		renesas_display_off_cmds_count =ARRAY_SIZE(sharp_display_off_cmds);
+		PR_DISP_INFO("Default panel_type = PANEL_ID_DLX_SHARP_RENESAS");
+	}
 
 	return platform_driver_register(&this_driver);
 }

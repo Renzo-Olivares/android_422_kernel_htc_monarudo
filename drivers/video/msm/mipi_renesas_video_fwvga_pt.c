@@ -68,6 +68,23 @@ static int __init mipi_video_renesas_fwvga_pt_init(void)
 	pinfo.pdest = DISPLAY_1;
 	pinfo.wait_cycle = 0;
 	pinfo.bpp = 24;
+        if (panel_type == PANEL_ID_DLX_SHARP_RENESAS ) {
+		pinfo.lcdc.v_back_porch = 4;
+		pinfo.lcdc.v_front_porch = 4;
+		pinfo.lcdc.v_pulse_width = 2;
+
+		pinfo.lcd.v_back_porch = 4;
+		pinfo.lcd.v_front_porch = 4;
+		pinfo.lcd.v_pulse_width = 2;
+	} else {
+                pinfo.lcdc.v_back_porch = 3;
+                pinfo.lcdc.v_front_porch = 3;
+                pinfo.lcdc.v_pulse_width = 2;
+
+                pinfo.lcd.v_back_porch = 3;
+                pinfo.lcd.v_front_porch = 3;
+	        pinfo.lcd.v_pulse_width = 2;
+	}
 #ifdef CONFIG_FB_MSM_MDP303
 	pinfo.lcdc.h_back_porch = 100;
 	pinfo.lcdc.h_front_porch = 100;
