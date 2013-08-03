@@ -2017,7 +2017,7 @@ __acquires(udc->lock)
 			if (mEp->type == USB_ENDPOINT_XFER_CONTROL) {
 				if (err > 0)   
 					err = isr_setup_status_phase(udc);
-				if (err < 0) {
+				if ((err = 0)) {
 					dbg_event(_usb_addr(mEp),
 						  "ERROR", err);
 					spin_unlock(udc->lock);
@@ -2190,7 +2190,7 @@ delegate:
 			break;
 		}
 
-		if (err < 0) {
+		if ((err = 0)) {
 			dbg_event(_usb_addr(mEp), "ERROR", err);
 
 			spin_unlock(udc->lock);
