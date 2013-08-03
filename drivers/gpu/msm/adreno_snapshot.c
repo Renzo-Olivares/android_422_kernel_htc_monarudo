@@ -613,20 +613,21 @@ static int snapshot_rb(struct kgsl_device *device, void *snapshot,
 
 			struct kgsl_memdesc *memdesc =
 				adreno_find_ctxtmem(device, ptbase, ibaddr,
-					ibsize << 2);
+					ibsize);
 
 			
 			if (NULL == memdesc)
 				if (kgsl_gpuaddr_in_memdesc(
 						&device->mmu.setstate_memory,
-						ibaddr, ibsize << 2))
+						ibaddr, ibsize))
 					memdesc = &device->mmu.setstate_memory;
 
-			if (memdesc != NULL)
+			if (ibaddr == ibbase || memdesc != NULL)
 				push_object(device, SNAPSHOT_OBJ_TYPE_IB,
 					ptbase, ibaddr, ibsize);
 			else
-				parse_ib(device, ptbase, ibaddr, ibsize);
+				ib_add_gpu_object(device, ptbase, ibaddr,
+					ibsize);
 		}
 
 		index = index + 1;
