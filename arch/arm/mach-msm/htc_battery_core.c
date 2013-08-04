@@ -434,35 +434,6 @@ static ssize_t htc_battery_set_navigation(struct device *dev,
 	return count;
 }
 
-static ssize_t htc_battery_set_disable_limit_chg(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	int rc = 0;
-	unsigned long disable_limit_chg = 0;
-
-	rc = strict_strtoul(buf, 10, &disable_limit_chg);
-	if (rc)
-		return rc;
-
-	BATT_LOG("Set context disable_limit_chg = %lu", disable_limit_chg);
-
-	if((disable_limit_chg != 0) && (disable_limit_chg != 1))
-		return -EINVAL;
-
-	if (!battery_core_info.func.func_context_event_handler) {
-		BATT_ERR("No context_event_notify function!");
-		return -ENOENT;
-	}
-
-	if (disable_limit_chg)
-		battery_core_info.func.func_context_event_handler(EVENT_DAYDREAM_START);
-	else
-		battery_core_info.func.func_context_event_handler(EVENT_DAYDREAM_STOP);
-
-	return count;
-}
-
 static struct device_attribute htc_battery_attrs[] = {
 	HTC_BATTERY_ATTR(batt_id),
 	HTC_BATTERY_ATTR(batt_vol),
@@ -495,8 +466,6 @@ static struct device_attribute htc_set_delta_attrs[] = {
 		htc_battery_set_network_search),
 	__ATTR(navigation, S_IWUSR | S_IWGRP, NULL,
 		htc_battery_set_navigation),
-	__ATTR(disable_limit_chg, S_IWUSR | S_IWGRP, NULL,
-		htc_battery_set_disable_limit_chg),
 };
 
 static int htc_battery_create_attrs(struct device *dev)
@@ -798,13 +767,6 @@ int htc_battery_core_update_changed(void)
 			battery_over_loading = 0;
 	}
 
-	if (battery_core_info.func.func_notify_pnpmgr_charging_enabled) {
-		if (battery_core_info.rep.charging_enabled !=
-				new_batt_info_rep.charging_enabled)
-			battery_core_info.func.func_notify_pnpmgr_charging_enabled(
-										new_batt_info_rep.charging_enabled);
-	}
-
 	memcpy(&battery_core_info.rep, &new_batt_info_rep, sizeof(struct battery_info_reply));
 
 	if (battery_core_info.rep.batt_temp > 680) {
@@ -950,9 +912,6 @@ int htc_battery_core_register(struct device *dev,
 	if (htc_battery->func_set_full_level)
 		battery_core_info.func.func_set_full_level =
 					htc_battery->func_set_full_level;
-	if (htc_battery->func_notify_pnpmgr_charging_enabled)
-		battery_core_info.func.func_notify_pnpmgr_charging_enabled =
-					htc_battery->func_notify_pnpmgr_charging_enabled;
 
 	
 	for (i = 0; i < ARRAY_SIZE(htc_power_supplies); i++) {

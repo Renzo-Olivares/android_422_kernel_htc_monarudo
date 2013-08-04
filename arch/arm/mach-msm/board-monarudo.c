@@ -844,9 +844,6 @@ static void __init monarudo_early_reserve(void)
 }
 
 #ifdef CONFIG_HTC_BATT_8960
-#ifdef CONFIG_HTC_PNPMGR
-extern int pnpmgr_battery_charging_enabled(int charging_enabled);
-#endif 
 static int pm8921_is_wireless_charger(void)
 {
 	int usb_in, dc_in;
@@ -863,8 +860,7 @@ static int pm8921_is_wireless_charger(void)
 static struct htc_battery_platform_data htc_battery_pdev_data = {
 	.guage_driver = 0,
 	.chg_limit_active_mask = HTC_BATT_CHG_LIMIT_BIT_TALK |
-								HTC_BATT_CHG_LIMIT_BIT_NAVI |
-								HTC_BATT_CHG_LIMIT_BIT_THRML,
+								HTC_BATT_CHG_LIMIT_BIT_NAVI,
 	.critical_low_voltage_mv = 3100,
 	.critical_alarm_voltage_mv = 3000,
 	.overload_vol_thr_mv = 4000,
@@ -902,14 +898,6 @@ static struct htc_battery_platform_data htc_battery_pdev_data = {
 	.igauge.enable_lower_voltage_alarm = pm8xxx_batt_lower_alarm_enable,
 	.igauge.set_lower_voltage_alarm_threshold =
 						pm8xxx_batt_lower_alarm_threshold_set,
-
-#ifdef CONFIG_THERMAL_TSENS8960
-	.get_thermal_sensor_temp = tsens_get_sensor_temp,
-#endif
-	
-#ifdef CONFIG_HTC_PNPMGR
-	.notify_pnpmgr_charging_enabled = pnpmgr_battery_charging_enabled,
-#endif 
 };
 static struct platform_device htc_battery_pdev = {
 	.name = "htc_battery",
