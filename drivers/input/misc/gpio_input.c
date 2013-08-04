@@ -283,9 +283,6 @@ static void power_key_restart_work_func(struct work_struct *dummy)
 	if (!pocket_mode && pre_power_key_led_status == 1 && !is_rrm1_mode()) {
 		
 		set_hw_reason(0);
-#if defined(CONFIG_PM8921_BMS) && (CONFIG_HTC_BATT_8960)
-		pm8921_store_hw_reset_reason(1);
-#endif
 		clear_hw_reset();
 		set_restart_to_ramdump("Powerkey Hard Reset - SW");
 		msm_restart(0, NULL);

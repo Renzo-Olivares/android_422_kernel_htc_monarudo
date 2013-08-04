@@ -56,7 +56,6 @@
 #define MSM_USB_BASE	(motg->regs)
 #define DRIVER_NAME	"msm_otg"
 
-extern int htc_battery_set_max_input_current(int target_ma);
 static int htc_otg_vbus;
 int USB_disabled;
 static struct msm_otg *the_msm_otg;
@@ -103,8 +102,6 @@ static void send_usb_connect_notify(struct work_struct *w)
 		pm_runtime_put_noidle(otg->phy->dev);
 		pm_runtime_suspend(otg->phy->dev);
 	}
-	if (motg->chg_type == USB_CDP_CHARGER)
-		htc_battery_set_max_input_current(900);
 }
 
 int htc_usb_register_notifier(struct t_usb_status_notifier *notifier)
