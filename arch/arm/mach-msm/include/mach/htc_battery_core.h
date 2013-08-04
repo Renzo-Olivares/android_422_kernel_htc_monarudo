@@ -78,9 +78,7 @@ struct htc_battery_core {
 	int (*func_get_battery_info)(struct battery_info_reply *buffer);
 	int (*func_charger_control)(enum charger_control_flag);
 	int (*func_context_event_handler)(enum batt_context_event);
-	int (*func_notify_pnpmgr_charging_enabled)(int charging_enabled);
 	void (*func_set_full_level)(int full_level);
-        int (*func_set_max_input_current)(int target_ma);
 };
 #ifdef CONFIG_HTC_BATT_CORE
 extern int htc_battery_core_update_changed(void);

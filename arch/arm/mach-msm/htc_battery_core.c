@@ -78,7 +78,6 @@ static struct alarm batt_charger_ctrl_alarm;
 static struct work_struct batt_charger_ctrl_work;
 struct workqueue_struct *batt_charger_ctrl_wq;
 static unsigned int charger_ctrl_stat;
-static unsigned int phone_call_stat;
 
 static int test_power_monitor;
 
@@ -295,21 +294,6 @@ int htc_battery_charger_disable()
 	return rc;
 }
 
-int htc_battery_set_max_input_current(int target_ma)
-{
-  int rc = 0;
-
-  if (!battery_core_info.func.func_set_max_input_current) {
-    BATT_ERR("No max input current function!");
-    return -ENOENT;
-  }
-  rc = battery_core_info.func.func_set_max_input_current(target_ma);
-  if (rc < 0)
-    BATT_ERR("max input current control failed!");
-
-  return rc;
-}
-
 int htc_battery_pwrsrc_disable()
 {
 	int rc = 0;
@@ -368,17 +352,6 @@ static ssize_t htc_battery_charger_switch(struct device *dev,
 	return count;
 }
 
-static ssize_t htc_battery_phone_call_stat(struct device *dev,
-				struct device_attribute *attr,
-				char *buf)
-{
-	int i = 0;
-
-	i += scnprintf(buf + i, PAGE_SIZE - i, "%u\n", phone_call_stat);
-
-	return i;
-}
-
 static ssize_t htc_battery_set_phone_call(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
@@ -401,8 +374,6 @@ static ssize_t htc_battery_set_phone_call(struct device *dev,
 		battery_core_info.func.func_context_event_handler(EVENT_TALK_START);
 	else
 		battery_core_info.func.func_context_event_handler(EVENT_TALK_STOP);
-
-	 phone_call_stat = phone_call;
 
 	return count;
 }
@@ -463,35 +434,6 @@ static ssize_t htc_battery_set_navigation(struct device *dev,
 	return count;
 }
 
-static ssize_t htc_battery_set_disable_limit_chg(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	int rc = 0;
-	unsigned long disable_limit_chg = 0;
-
-	rc = strict_strtoul(buf, 10, &disable_limit_chg);
-	if (rc)
-		return rc;
-
-	BATT_LOG("Set context disable_limit_chg = %lu", disable_limit_chg);
-
-	if((disable_limit_chg != 0) && (disable_limit_chg != 1))
-		return -EINVAL;
-
-	if (!battery_core_info.func.func_context_event_handler) {
-		BATT_ERR("No context_event_notify function!");
-		return -ENOENT;
-	}
-
-	if (disable_limit_chg)
-		battery_core_info.func.func_context_event_handler(EVENT_DAYDREAM_START);
-	else
-		battery_core_info.func.func_context_event_handler(EVENT_DAYDREAM_STOP);
-
-	return count;
-}
-
 static struct device_attribute htc_battery_attrs[] = {
 	HTC_BATTERY_ATTR(batt_id),
 	HTC_BATTERY_ATTR(batt_vol),
@@ -518,14 +460,12 @@ static struct device_attribute htc_set_delta_attrs[] = {
 		htc_battery_charger_switch),
 	__ATTR(charger_timer, S_IWUSR | S_IWGRP, NULL,
 		htc_battery_charger_ctrl_timer),
-	__ATTR(phone_call, S_IWUSR | S_IWGRP, htc_battery_phone_call_stat,
+	__ATTR(phone_call, S_IWUSR | S_IWGRP, NULL,
 		htc_battery_set_phone_call),
 	__ATTR(network_search, S_IWUSR | S_IWGRP, NULL,
 		htc_battery_set_network_search),
 	__ATTR(navigation, S_IWUSR | S_IWGRP, NULL,
 		htc_battery_set_navigation),
-	__ATTR(disable_limit_chg, S_IWUSR | S_IWGRP, NULL,
-		htc_battery_set_disable_limit_chg),
 };
 
 static int htc_battery_create_attrs(struct device *dev)
@@ -827,13 +767,6 @@ int htc_battery_core_update_changed(void)
 			battery_over_loading = 0;
 	}
 
-	if (battery_core_info.func.func_notify_pnpmgr_charging_enabled) {
-		if (battery_core_info.rep.charging_enabled !=
-				new_batt_info_rep.charging_enabled)
-			battery_core_info.func.func_notify_pnpmgr_charging_enabled(
-										new_batt_info_rep.charging_enabled);
-	}
-
 	memcpy(&battery_core_info.rep, &new_batt_info_rep, sizeof(struct battery_info_reply));
 
 	if (battery_core_info.rep.batt_temp > 680) {
@@ -972,9 +905,6 @@ int htc_battery_core_register(struct device *dev,
 	if (htc_battery->func_charger_control)
 		battery_core_info.func.func_charger_control =
 					htc_battery->func_charger_control;
-        if (htc_battery->func_set_max_input_current)
-                battery_core_info.func.func_set_max_input_current =
-                                        htc_battery->func_set_max_input_current;
 	if (htc_battery->func_context_event_handler)
 		battery_core_info.func.func_context_event_handler =
 					htc_battery->func_context_event_handler;
@@ -982,9 +912,6 @@ int htc_battery_core_register(struct device *dev,
 	if (htc_battery->func_set_full_level)
 		battery_core_info.func.func_set_full_level =
 					htc_battery->func_set_full_level;
-	if (htc_battery->func_notify_pnpmgr_charging_enabled)
-		battery_core_info.func.func_notify_pnpmgr_charging_enabled =
-					htc_battery->func_notify_pnpmgr_charging_enabled;
 
 	
 	for (i = 0; i < ARRAY_SIZE(htc_power_supplies); i++) {
