@@ -269,23 +269,21 @@ unsigned int ieee80211_get_hdrlen_from_skb(const struct sk_buff *skb)
 }
 EXPORT_SYMBOL(ieee80211_get_hdrlen_from_skb);
 
-static int ieee80211_get_mesh_hdrlen(struct ieee80211s_hdr *meshhdr)
+unsigned int ieee80211_get_mesh_hdrlen(struct ieee80211s_hdr *meshhdr)
 {
 	int ae = meshhdr->flags & MESH_FLAGS_AE;
-	
+	/* 802.11-2012, 8.2.4.7.3 */
 	switch (ae) {
+	default:
 	case 0:
 		return 6;
 	case MESH_FLAGS_AE_A4:
 		return 12;
 	case MESH_FLAGS_AE_A5_A6:
 		return 18;
-	case (MESH_FLAGS_AE_A4 | MESH_FLAGS_AE_A5_A6):
-		return 24;
-	default:
-		return 6;
 	}
 }
+EXPORT_SYMBOL(ieee80211_get_mesh_hdrlen);
 
 int ieee80211_data_to_8023(struct sk_buff *skb, const u8 *addr,
 			   enum nl80211_iftype iftype)
@@ -324,6 +322,8 @@ int ieee80211_data_to_8023(struct sk_buff *skb, const u8 *addr,
 			
 			if (!pskb_may_pull(skb, hdrlen + 1))
 				return -1;
+			if (meshdr->flags & MESH_FLAGS_AE_A4)
+				return -1;
 			if (meshdr->flags & MESH_FLAGS_AE_A5_A6) {
 				skb_copy_bits(skb, hdrlen +
 					offsetof(struct ieee80211s_hdr, eaddr1),
@@ -347,6 +347,8 @@ int ieee80211_data_to_8023(struct sk_buff *skb, const u8 *addr,
 				(struct ieee80211s_hdr *) (skb->data + hdrlen);
 			
 			if (!pskb_may_pull(skb, hdrlen + 1))
+				return -1;
+			if (meshdr->flags & MESH_FLAGS_AE_A5_A6)
 				return -1;
 			if (meshdr->flags & MESH_FLAGS_AE_A4)
 				skb_copy_bits(skb, hdrlen +
@@ -823,97 +825,12 @@ int cfg80211_change_iface(struct cfg80211_registered_device *rdev,
 	return err;
 }
 
-#ifdef CONFIG_QUALCOMM_WLAN
-static u32 cfg80211_calculate_bitrate_vht(struct rate_info *rate)
-{
-	static const u32 base[4][10] = {
-		{   6500000,
-		   13000000,
-		   19500000,
-		   26000000,
-		   39000000,
-		   52000000,
-		   58500000,
-		   65000000,
-		   78000000,
-		   0,
-		},
-		{  13500000,
-		   27000000,
-		   40500000,
-		   54000000,
-		   81000000,
-		  108000000,
-		  121500000,
-		  135000000,
-		  162000000,
-		  180000000,
-		},
-		{  29300000,
-		   58500000,
-		   87800000,
-		  117000000,
-		  175500000,
-		  234000000,
-		  263300000,
-		  292500000,
-		  351000000,
-		  390000000,
-		},
-		{  58500000,
-		  117000000,
-		  175500000,
-		  234000000,
-		  351000000,
-		  468000000,
-		  526500000,
-		  585000000,
-		  702000000,
-		  780000000,
-		},
-	};
-	u32 bitrate;
-	int idx;
-
-	if (WARN_ON_ONCE(rate->mcs > 9))
-		return 0;
-
-	idx = rate->flags & (RATE_INFO_FLAGS_160_MHZ_WIDTH |
-			     RATE_INFO_FLAGS_80P80_MHZ_WIDTH) ? 3 :
-		  rate->flags & RATE_INFO_FLAGS_80_MHZ_WIDTH ? 2 :
-		  rate->flags & RATE_INFO_FLAGS_40_MHZ_WIDTH ? 1 : 0;
-
-	bitrate = base[idx][rate->mcs];
-	bitrate *= rate->nss;
-
-	if (rate->flags & RATE_INFO_FLAGS_SHORT_GI)
-		bitrate = (bitrate / 9) * 10;
-
-	
-	return (bitrate + 50000) / 100000;
-}
-#endif
-
-#ifdef CONFIG_QUALCOMM_WLAN
-u32 cfg80211_calculate_bitrate(struct rate_info *rate)
-#else
 u16 cfg80211_calculate_bitrate(struct rate_info *rate)
-#endif
 {
 	int modulation, streams, bitrate;
 
-#ifdef CONFIG_QUALCOMM_WLAN
-	if (!(rate->flags & RATE_INFO_FLAGS_MCS) &&
-	    !(rate->flags & RATE_INFO_FLAGS_VHT_MCS))
-#else
 	if (!(rate->flags & RATE_INFO_FLAGS_MCS))
-#endif
 		return rate->legacy;
-
-#ifdef CONFIG_QUALCOMM_WLAN
-	if (rate->flags & RATE_INFO_FLAGS_VHT_MCS)
-		return cfg80211_calculate_bitrate_vht(rate);
-#endif
 
 	
 	if (rate->mcs >= 32)

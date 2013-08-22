@@ -457,7 +457,7 @@ void wlan_init_perf(void)
 {
 #ifdef CONFIG_PERFLOCK
 	wlan_perf_lock = perflock_acquire("bcmdhd");
-	perf_lock_init(wlan_perf_lock, TYPE_PERF_LOCK, PERF_LOCK_HIGHEST, "bcmdhd");
+	perf_lock_init(wlan_perf_lock, PERF_LOCK_HIGHEST, "bcmdhd");
 #endif
 }
 

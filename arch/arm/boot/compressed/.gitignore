@@ -1,8 +1,10 @@
+ashldi3.S
 font.c
 lib1funcs.S
 piggy.gzip
 piggy.lzo
 piggy.lzma
+piggy.xzkern
 vmlinux
 vmlinux.lds
 
@@ -14,5 +16,3 @@ fdt_rw.c
 fdt_wip.c
 libfdt.h
 libfdt_internal.h
-
-*.xzkern
