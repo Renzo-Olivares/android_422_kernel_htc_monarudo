@@ -508,7 +508,7 @@ static struct msm_camera_sensor_flash_src msm_camera_flash_src = {
 };
 #endif
 
-#ifdef CONFIG_RAWCHIPII
+#ifdef CONFIG_RAWCHIP
 static int monarudo_use_ext_1v2(void)
 {
 #if 0	
