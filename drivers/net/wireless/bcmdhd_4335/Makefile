@@ -48,6 +48,8 @@ DHDOFILES += wl_linux_mon.o wl_cfg80211.o wl_cfgp2p.o
 
 
 
+#HTC_REDUCE_FIRST_SCAN
+DHDCFLAGS += -DREDUCE_FIRST_SCAN
 
 obj-$(CONFIG_BCMDHD_4335) += bcmdhd.o
 bcmdhd-objs += $(DHDOFILES)
