@@ -1,0 +1,11 @@
+--- include/linux/usb/msm_hsusb_hw.h	2013-01-04 04:01:34.000000000 -0800
++++ include/linux/usb/msm_hsusb_hw.h	2013-03-19 04:00:55.000000000 -0700
+@@ -18,7 +18,7 @@
+ 
+ #define USB_AHBBURST         (MSM_USB_BASE + 0x0090)
+ #define USB_AHBMODE          (MSM_USB_BASE + 0x0098)
+-#define USB_CAPLENGTH        (MSM_USB_BASE + 0x0100) /* 8 bit */
++#define USB_CAPLENGTH        (MSM_USB_BASE + 0x0100) 
+ 
+ #define USB_USBCMD           (MSM_USB_BASE + 0x0140)
+ #define USB_USBSTS           (MSM_USB_BASE + 0x0144)
