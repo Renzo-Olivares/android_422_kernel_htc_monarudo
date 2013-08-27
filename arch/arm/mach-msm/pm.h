@@ -52,8 +52,7 @@ enum msm_pm_sleep_mode {
 	MSM_PM_SLEEP_MODE_RETENTION = MSM_PM_SLEEP_MODE_APPS_SLEEP,
 	MSM_PM_SLEEP_MODE_POWER_COLLAPSE_SUSPEND = 5,
 	MSM_PM_SLEEP_MODE_POWER_COLLAPSE_NO_XO_SHUTDOWN = 6,
-	MSM_PM_SLEEP_MODE_NR = 7,
-	MSM_PM_SLEEP_MODE_NOT_SELECTED,
+	MSM_PM_SLEEP_MODE_NR
 };
 
 #define MSM_PM_MODE(cpu, mode_nr)  ((cpu) * MSM_PM_SLEEP_MODE_NR + (mode_nr))
@@ -101,13 +100,11 @@ void msm_pm_set_rpm_wakeup_irq(unsigned int irq);
 int msm_pm_wait_cpu_shutdown(unsigned int cpu);
 bool msm_pm_verify_cpu_pc(unsigned int cpu);
 void msm_pm_set_sleep_ops(struct msm_pm_sleep_ops *ops);
-void msm_pm_radio_info_init(unsigned int *addr);
 #else
 static inline void msm_pm_set_rpm_wakeup_irq(unsigned int irq) {}
 static inline int msm_pm_wait_cpu_shutdown(unsigned int cpu) { return 0; }
 static inline bool msm_pm_verify_cpu_pc(unsigned int cpu) { return true; }
 static inline void msm_pm_set_sleep_ops(struct msm_pm_sleep_ops *ops) {}
-static inline void msm_pm_radio_info_init(unsigned int *addr) {}
 #endif
 #ifdef CONFIG_HOTPLUG_CPU
 int msm_platform_secondary_init(unsigned int cpu);

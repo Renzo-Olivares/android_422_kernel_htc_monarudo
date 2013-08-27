@@ -102,7 +102,6 @@ static u8* htc_get_wwan_buffer(struct list_head* list_ptr)
 
 void usb_wwan_dtr_rts(struct usb_serial_port *port, int on)
 {
-	struct usb_serial *serial = port->serial;
 	struct usb_wwan_port_private *portdata;
 
 	struct usb_wwan_intf_private *intfdata;
@@ -115,12 +114,11 @@ void usb_wwan_dtr_rts(struct usb_serial_port *port, int on)
 		return;
 
 	portdata = usb_get_serial_port_data(port);
-	mutex_lock(&serial->disc_mutex);
+	/* FIXME: locking */
 	portdata->rts_state = on;
 	portdata->dtr_state = on;
-	if (serial->dev)
-		intfdata->send_setup(port);
-	mutex_unlock(&serial->disc_mutex);
+
+	intfdata->send_setup(port);
 }
 EXPORT_SYMBOL(usb_wwan_dtr_rts);
 
@@ -658,7 +656,7 @@ int usb_wwan_startup(struct usb_serial *serial)
 	}
 #endif 
 
-	if (get_radio_flag() & 0x0001)
+	if (get_radio_flag() & 0x0008)
 		usb_pm_debug_enabled = true;
 
 	
@@ -717,11 +715,6 @@ int usb_wwan_startup(struct usb_serial *serial)
 			dbg("%s: submit irq_in urb failed %d", __func__, err);
 	}
 	usb_wwan_setup_urbs(serial);
-
-	
-	serial->interface->needs_remote_wakeup = 1;
-	
-
 	return 0;
 
 bail_out_error2:

@@ -30,6 +30,8 @@
 #define DRIVER_DESC	"USB host diag bridge driver"
 #define DRIVER_VERSION	"1.0"
 
+#define AUTOSUSP_DELAY_WITH_USB 1000
+
 struct diag_bridge {
 	struct usb_device	*udev;
 	struct usb_interface	*ifc;
@@ -41,6 +43,7 @@ struct diag_bridge {
 	struct mutex	ifc_mutex;
 	struct diag_bridge_ops	*ops;
 	struct platform_device	*pdev;
+	unsigned		default_autosusp_delay;
 
 	
 	unsigned long		bytes_to_host;
@@ -61,6 +64,12 @@ int diag_bridge_open(struct diag_bridge_ops *ops)
 
 	dev->ops = ops;
 	dev->err = 0;
+
+#ifdef CONFIG_PM_RUNTIME
+	dev->default_autosusp_delay = dev->udev->dev.power.autosuspend_delay;
+#endif
+	pm_runtime_set_autosuspend_delay(&dev->udev->dev,
+			AUTOSUSP_DELAY_WITH_USB);
 
 	kref_get(&dev->kref);
 
@@ -85,6 +94,10 @@ void diag_bridge_close(void)
 
 	usb_kill_anchored_urbs(&dev->submitted);
 	dev->ops = 0;
+
+	pm_runtime_set_autosuspend_delay(&dev->udev->dev,
+			dev->default_autosusp_delay);
+
 	kref_put(&dev->kref, diag_bridge_delete);
 }
 EXPORT_SYMBOL(diag_bridge_close);
@@ -487,13 +500,6 @@ static int diag_bridge_resume(struct usb_interface *ifc)
 	return 0;
 }
 
-
-int diag_bridge_reset_resume(struct usb_interface *intf)
-{
-	pr_info("%s intf %p\n", __func__, intf);
-	return diag_bridge_resume(intf);
-}
-
 #define VALID_INTERFACE_NUM	0
 static const struct usb_device_id diag_bridge_ids[] = {
 	{ USB_DEVICE(0x5c6, 0x9001),
@@ -515,7 +521,6 @@ static struct usb_driver diag_bridge_driver = {
 	.disconnect =	diag_bridge_disconnect,
 	.suspend =	diag_bridge_suspend,
 	.resume =	diag_bridge_resume,
-	.reset_resume =	diag_bridge_reset_resume,
 	.id_table =	diag_bridge_ids,
 	.supports_autosuspend = 1,
 };

@@ -29,7 +29,6 @@
 
 #define REG_HWREV		0x002  
 #define REG_HWREV_2		0x0E8  
-#define REG_HWSUBREV		0x001  
 
 #define REG_MPP_BASE		0x050
 #define REG_IRQ_BASE		0x1BB
@@ -47,7 +46,6 @@
 #define PM8922_VERSION_VALUE	0x0AF0
 #define PM8917_VERSION_VALUE	0x0CF0
 #define PM8921_REVISION_MASK	0x000F
-#define PM8921_SUBREV_MASK	0x01
 
 #define REG_PM8921_PON_CNTRL_3	0x01D
 #define PM8921_RESTART_REASON_MASK	0x07
@@ -246,7 +244,7 @@ static struct mfd_cell pwm_cell __devinitdata = {
 	.id             = -1,
 };
 
-#ifdef CONFIG_AMP_RT5501
+#ifdef CONFIG_AMP_TPA6185
 static struct mfd_cell pmaudio_cell __devinitdata = {
 	.name           = "pm8921-audio",
 	.id             = -1,
@@ -814,7 +812,7 @@ pm8921_add_subdevices(const struct pm8921_platform_data *pdata,
 		}
 	}
 
-#ifdef CONFIG_AMP_RT5501
+#ifdef CONFIG_AMP_TPA6185
 	ret = mfd_add_devices(pmic->dev, 0, &pmaudio_cell, 1, NULL,
 				irq_base);
 	if (ret) {
@@ -865,10 +863,13 @@ static const char * const pm8917_rev_names[] = {
 	[PM8XXX_REVISION_8917_1p0]	= "1.0",
 };
 
+#ifdef CONFIG_MSM_SHOW_RESUME_IRQ
 extern int msm_show_resume_irq_mask;
+#endif
 
 static void pm8921_show_resume_irq(void)
 {
+#ifdef CONFIG_MSM_SHOW_RESUME_IRQ
 	int i, irq;
 	struct pm_irq_chip *chip = pmic8921_chip->irq_chip;
 
@@ -886,6 +887,7 @@ static void pm8921_show_resume_irq(void)
 			}
 		}
 	}
+#endif
 }
 
 static int pm8921_suspend(void)
@@ -912,7 +914,6 @@ static int __devinit pm8921_probe(struct platform_device *pdev)
 	int revision;
 	int rc;
 	u8 val;
-	u8 subrev = 0;
 
 	if (!pdata) {
 		pr_err("missing platform data\n");
@@ -951,20 +952,10 @@ static int __devinit pm8921_probe(struct platform_device *pdev)
 	
 	version = pm8xxx_get_version(pmic->dev);
 	revision = pm8xxx_get_revision(pmic->dev);
-	rc = msm_ssbi_read(pdev->dev.parent, REG_HWSUBREV, &subrev,
-					sizeof(subrev));
-	if (rc)
-		pr_err("Failed to read hw subrev reg %d:rc=%d\n",
-			REG_HWSUBREV, rc);
-
 	if (version == PM8XXX_VERSION_8921) {
 		if (revision >= 0 && revision < ARRAY_SIZE(pm8921_rev_names))
 			revision_name = pm8921_rev_names[revision];
-		if ((revision == PM8XXX_REVISION_8921_3p0)
-				&& (subrev & PM8921_SUBREV_MASK))
-			pr_info("PMIC version: PM8921 rev %s.1\n", revision_name);
-		else
-			pr_info("PMIC version: PM8921 rev %s\n", revision_name);
+		pr_info("PMIC version: PM8921 rev %s\n", revision_name);
 	} else if (version == PM8XXX_VERSION_8922) {
 		if (revision >= 0 && revision < ARRAY_SIZE(pm8922_rev_names))
 			revision_name = pm8922_rev_names[revision];
