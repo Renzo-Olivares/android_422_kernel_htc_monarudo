@@ -292,6 +292,12 @@ config MACH_VALENTE_WX
 	help
 	  Support for the HTC Valente#WX
 
+config MACH_ZIP_CL_MI2S_DATA_SWITCH
+	depends on MACH_ZIP_CL
+	bool "ZIP_CL_MI2S_DATA_SWITCH"
+	help
+	  Support for the workaround for ZIP_CL MI2S data Input/Output switch
+
 config ARCH_FSM9XXX
 	bool "FSM9XXX"
 	select ARCH_MSM_SCORPION
@@ -2676,23 +2682,23 @@ config MACH_MONARUDO
 	help
 	  Support for the HTC APQ8064 MONARUDO.
 
+config MACH_DELUXE_J
+        depends on ARCH_APQ8064
+        bool "APQ8064 DELUXE_J"
+        help
+          Support for the HTC APQ8064 DELUXE_J.
+
+config MACH_IMPRESSION_J
+        depends on ARCH_APQ8064
+        bool "APQ8064 IMPRESSION_J"
+        help
+          Support for the HTC APQ8064 IMPRESSION_J.
+
 config MACH_M7_UL
         depends on ARCH_APQ8064
         bool "APQ8064 M7_UL"
         help
           Support for the HTC APQ8064 M7_UL.
-
-config MACH_M7_DXG
-        depends on ARCH_APQ8064
-        bool "APQ8064 M7_DXG"
-        help
-          Support for the HTC APQ8064 M7_DXG.
-
-config MACH_T6_DXG
-        depends on ARCH_APQ8064
-        bool "APQ8064 T6_DXG"
-        help
-          Support for the HTC APQ8064 T6_DXG.
 
 config QSC_MODEM
         default n

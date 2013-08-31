@@ -933,9 +933,14 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		}
 	}
 	
-	if (card->ext_csd.rev >= 6)
+	if (card->ext_csd.rev >= 6) {
 		card->wr_perf = 14;
-	else if (card->cid.manfid == 0x45) {
+		
+		if (card->cid.manfid == 0x15) {
+			card->host->bkops_check_status = 1;
+			pr_info("%s: set bkops_check_status\n", mmc_hostname(card->host));
+		}
+	} else if (card->cid.manfid == 0x45) {
 		
 		if ((card->ext_csd.sectors == 31105024) && !strcmp(card->cid.prod_name, "SEM16G"))
 			card->wr_perf = 12;
@@ -964,10 +969,12 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		else if ((card->ext_csd.sectors == 30535680) && !strcmp(card->cid.prod_name, "MAG2GA"))
 			card->wr_perf = 14;
 		
-		else if ((card->ext_csd.sectors == 61071360) && (card->cid.fwrev == 0x7))
+		else if ((card->ext_csd.sectors == 61071360) && (card->cid.fwrev == 0x7)) {
 			card->wr_perf = 14;
+			card->host->bkops_check_status = 1;
+			pr_info("%s: set bkops_check_status\n", mmc_hostname(card->host));
 		
-		else if (card->ext_csd.sectors == 122142720)
+		} else if (card->ext_csd.sectors == 122142720)
 			card->wr_perf = 14;
 		else
 			card->wr_perf = 11;

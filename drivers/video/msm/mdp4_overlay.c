@@ -42,6 +42,7 @@
 #include "mdp4.h"
 
 #define VERSION_KEY_MASK	0xFFFFFF00
+const int mdp44_max_clk = 266667000;
 
 struct mdp4_overlay_ctrl {
 	struct mdp4_overlay_pipe plist[OVERLAY_PIPE_MAX];
@@ -120,7 +121,6 @@ struct mdp4_overlay_perf perf_current = {
 };
 
 static struct ion_client *display_iclient;
-
 
 void mdp4_overlay_iommu_unmap_freelist(int mixer)
 {
@@ -2338,12 +2338,6 @@ static int mdp4_calc_pipe_mdp_clk(struct msm_fb_data_type *mfd,
 		return ret;
 	}
 
-	if (pipe->mixer_num) {
-		pr_debug("%s: force mdp max clk in mixer %d\n", __func__, pipe->mixer_num);
-		pipe->req_clk = mdp_max_clk;
-		return 0;
-	}
-
 	pr_debug("%s: pipe sets: panel res(x,y)=(%d,%d)\n",
 		 __func__,  mfd->panel_info.xres, mfd->panel_info.yres);
 	pr_debug("%s: src(w,h)(%d,%d),src(x,y)(%d,%d)\n",
@@ -2465,6 +2459,11 @@ static int mdp4_calc_pipe_mdp_clk(struct msm_fb_data_type *mfd,
 		}
 		pr_info("%s deinterlace requires max mdp clk.\n",
 			__func__);
+	}
+
+	if (pipe->mixer_num && rst < mdp_max_clk) {
+		rst = mdp_max_clk;
+		pr_debug("%s: force mdp max clk in mixer %d\n", __func__, pipe->mixer_num);
 	}
 
 	pipe->req_clk = (u32) rst;
@@ -2605,6 +2604,7 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd,
 	struct mdp4_overlay_pipe *pipe = plist;
 	u32 cnt = 0;
 	int ret = -EINVAL;
+	int burst_mdpclk = 0;
 
 	if (!mfd) {
 		pr_err("%s: mfd is null!\n", __func__);
@@ -2633,8 +2633,14 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd,
 		if (pipe->req_clk > mdp_max_clk) {
 			if (pipe->mixer_num == MDP4_MIXER0)
 				perf_req->use_ov0_blt = 1;
-			if (pipe->mixer_num == MDP4_MIXER1)
-				perf_req->use_ov1_blt = 1;
+			if (pipe->mixer_num == MDP4_MIXER1) {
+				if (mfd->mdp_rev == MDP_REV_44 && pipe->req_clk <= mdp44_max_clk) {
+					burst_mdpclk = 1;
+					pr_info("%s: req_clk %d > mdp_max_clk %d in mixer %d\n", __func__,
+							pipe->req_clk, mdp_max_clk, pipe->mixer_num);
+				} else
+					perf_req->use_ov1_blt = 1;
+			}
 		}
 
 		if (!pipe->req_bw) {
@@ -2680,9 +2686,12 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd,
 	}
 
 	perf_req->mdp_clk_rate = worst_mdp_clk;
-	if (perf_req->mdp_clk_rate > mdp_max_clk)
-		perf_req->mdp_clk_rate = mdp_max_clk;
-	else if (perf_req->mdp_clk_rate < mdp_min_clk)
+	if (perf_req->mdp_clk_rate > mdp_max_clk) {
+		if (burst_mdpclk)
+			perf_req->mdp_clk_rate = mdp44_max_clk;
+		else
+			perf_req->mdp_clk_rate = mdp_max_clk;
+	} else if (perf_req->mdp_clk_rate < mdp_min_clk)
 		perf_req->mdp_clk_rate = mdp_min_clk;
 
 	perf_req->mdp_clk_rate = mdp_clk_round_rate(perf_req->mdp_clk_rate);

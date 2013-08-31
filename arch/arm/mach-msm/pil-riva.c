@@ -270,7 +270,10 @@ static int pil_riva_reset(struct pil_desc *pil)
 	}
 
 	if(nLoopCount == 0)
-	{return -1;}
+	{
+		printk("[WLAN][SSR] PLL lock detection failed!\n");
+		return -1;
+	}
 	printk("[WLAN][SSR] Check PLL lock detection passed\n");
 
 	HWIO_RIVA_PLL_MODE_OUTM(0x1, (u32)(1) << (0x0)); 

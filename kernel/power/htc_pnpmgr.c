@@ -237,7 +237,6 @@ ssize_t
 cpu_hotplug_store(struct kobject *kobj, struct kobj_attribute *attr,
 		const char *buf, size_t n)
 {
-	sysfs_notify(hotplug_kobj, NULL, "cpu_hotplug");
 	return 0;
 }
 power_attr(cpu_hotplug);
@@ -372,6 +371,28 @@ static struct attribute_group battery_attr_group = {
 	.attrs = battery_g,
 };
 
+#ifdef CONFIG_HOTPLUG_CPU
+static int __cpuinit cpu_hotplug_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
+{
+	switch (action) {
+		
+		case CPU_ONLINE:
+		case CPU_ONLINE_FROZEN:
+			sysfs_notify(hotplug_kobj, NULL, "cpu_hotplug");
+			break;
+		case CPU_DEAD:
+		case CPU_DEAD_FROZEN:
+			break;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block __refdata cpu_hotplug_notifier = {
+	.notifier_call = cpu_hotplug_callback,
+	.priority = -10, 
+};
+#endif
+
 static unsigned int slack_time_ms;
 static unsigned int step_time_ms;
 static unsigned int max_powersave_bias;
@@ -463,6 +484,10 @@ static int __init pnpmgr_init(void)
 		return ret;
 	}
 
+#ifdef CONFIG_HOTPLUG_CPU
+	register_hotcpu_notifier(&cpu_hotplug_notifier);
+#endif
+
 	return 0;
 }
 
@@ -474,6 +499,9 @@ static void  __exit pnpmgr_exit(void)
 	sysfs_remove_group(apps_kobj, &apps_attr_group);
 	sysfs_remove_group(battery_kobj, &battery_attr_group);
 	sysfs_remove_group(adaptive_policy_kobj, &adaptive_attr_group);
+#ifdef CONFIG_HOTPLUG_CPU
+	unregister_hotcpu_notifier(&cpu_hotplug_notifier);
+#endif
 }
 
 module_init(pnpmgr_init);

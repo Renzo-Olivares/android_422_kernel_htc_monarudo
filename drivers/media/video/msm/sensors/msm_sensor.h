@@ -371,6 +371,7 @@ int32_t msm_sensor_adjust_frame_lines(struct msm_sensor_ctrl_t *s_ctrl,
 struct file* msm_fopen(const char* path, int flags, int rights);
 int msm_fwrite(struct file* file, unsigned long long offset, unsigned char* data, unsigned int size);
 void msm_fclose(struct file* file);
+void msm_dump_otp_to_file(const char* sensor_name, const short* add, const uint8_t* data, size_t count);
 
 
 

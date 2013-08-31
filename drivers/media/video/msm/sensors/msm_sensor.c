@@ -2141,4 +2141,27 @@ struct file* msm_fopen(const char* path, int flags, int rights) {
 
     return filp;
 }
-
+void msm_dump_otp_to_file(const char* sensor_name, const short* add, const uint8_t* data, size_t count)  
+{  
+    uint8_t *path= "/data/otp.txt";  
+    struct file* f = msm_fopen (path, O_CREAT|O_RDWR|O_TRUNC, 0666);  
+    char buf[512];  
+    int i=0;  
+    int len=0,offset=0;  
+    pr_info ("%s\n",__func__);  
+  
+    if (f) {  
+        len = sprintf (buf,"%s\n",sensor_name);  
+        msm_fwrite (f,offset,buf,len);  
+        offset += len;  
+  
+        for (i=0; i<count; ++i) {  
+            len = sprintf (buf,"0x%x 0x%x\n",add[i],data[i]);  
+            msm_fwrite (f,offset,buf,len);  
+            offset += len;  
+        }  
+        msm_fclose (f);  
+    } else {  
+        pr_err ("%s: fail to open file\n", __func__);  
+    }  
+} 

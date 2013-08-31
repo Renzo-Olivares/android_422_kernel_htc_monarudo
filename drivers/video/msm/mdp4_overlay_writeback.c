@@ -341,7 +341,6 @@ void mdp4_writeback_kickoff_video(struct msm_fb_data_type *mfd,
 	mutex_unlock(&mfd->unregister_mutex);
 	wake_up(&mfd->wait_q);
 
-	writeback_init_done = false;
 }
 
 void mdp4_writeback_kickoff_ui(struct msm_fb_data_type *mfd,
@@ -671,5 +670,6 @@ int mdp4_writeback_terminate(struct fb_info *info)
 terminate_err:
 	mutex_unlock(&mfd->writeback_mutex);
 	mutex_unlock(&mfd->unregister_mutex);
+	writeback_init_done = false;
 	return rc;
 }

@@ -79,7 +79,6 @@
 #define MSMFB_GET_USB_PROJECTOR_INFO _IOR(MSMFB_IOCTL_MAGIC, 301, struct msmfb_usb_projector_info)
 #define MSMFB_SET_USB_PROJECTOR_INFO _IOW(MSMFB_IOCTL_MAGIC, 302, struct msmfb_usb_projector_info)
 #define MSMFB_SET_DISP_PROJECTOR_INFO _IOW(MSMFB_IOCTL_MAGIC, 303, struct msmfb_disp_projector_info)
-#define MSMFB_SET_SCHED_PRIORITY _IOW(MSMFB_IOCTL_MAGIC, 304, struct msmfb_sched_priority)
 
 
 #define FB_TYPE_3D_PANEL 0x10101010
@@ -97,11 +96,6 @@ struct msmfb_disp_projector_info {
 	int client_height;
 	int device_width;
 	int device_height;
-};
-
-struct msmfb_sched_priority {
-	int pid;
-	int priority;
 };
 
 enum {
