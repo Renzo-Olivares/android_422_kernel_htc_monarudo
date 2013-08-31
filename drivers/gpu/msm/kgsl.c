@@ -658,14 +658,15 @@ kgsl_put_process_private(struct kgsl_device *device,
 		return;
 
 	mutex_lock(&kgsl_driver.process_mutex);
-	spin_lock(&kgsl_driver.process_dump_lock);
 	if (--private->refcnt)
 		goto unlock;
 
 	kgsl_process_uninit_sysfs(private);
 	debugfs_remove_recursive(private->debug_root);
 
+	spin_lock(&kgsl_driver.process_dump_lock);
 	list_del(&private->list);
+	spin_unlock(&kgsl_driver.process_dump_lock);
 
 	for (node = rb_first(&private->mem_rb); node; ) {
 		entry = rb_entry(node, struct kgsl_mem_entry, node);
@@ -677,7 +678,6 @@ kgsl_put_process_private(struct kgsl_device *device,
 	kgsl_mmu_putpagetable(private->pagetable);
 	kfree(private);
 unlock:
-	spin_unlock(&kgsl_driver.process_dump_lock);
 	mutex_unlock(&kgsl_driver.process_mutex);
 }
 

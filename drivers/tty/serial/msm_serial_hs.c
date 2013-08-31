@@ -54,6 +54,7 @@
 #include <linux/device.h>
 #include <linux/wakelock.h>
 #include <linux/debugfs.h>
+#include <linux/delay.h>
 #include <asm/atomic.h>
 #include <asm/irq.h>
 
@@ -179,9 +180,194 @@ static struct msm_hs_port q_uart_port[UARTDM_NR];
 static struct platform_driver msm_serial_hs_platform_driver;
 static struct uart_driver msm_hs_driver;
 static struct uart_ops msm_hs_ops;
+static void msm_hs_dump_register(struct uart_port *port);
 
 #define UARTDM_TO_MSM(uart_port) \
 	container_of((uart_port), struct msm_hs_port, uport)
+
+#ifdef CONFIG_SERIAL_MSM_HS_DEBUG_RINGBUFFER
+#define RING_SIZE (PAGE_SIZE)
+#define RING_INDEX(x) ((x) & (RING_SIZE-1))
+#define SINGLE_LENGTH 512
+
+#ifdef CONFIG_QSC_MODEM
+#define MSM_SERIAL_HS_ID 1
+#endif
+struct RingBuffer
+{
+	char   raw[RING_SIZE];
+	size_t head;
+	spinlock_t lock;
+};
+
+static struct RingBuffer DbgBuf;
+
+static inline void memcpy_DbgBuffer( void *HexRaw, int size )
+{
+	unsigned long flags;
+	char *raw;
+	int head;
+
+	spin_lock_irqsave(&DbgBuf.lock, flags);
+
+	raw = DbgBuf.raw;
+	head = DbgBuf.head;
+
+	if(head+size > RING_SIZE)
+	{
+		int size1, size2;
+		size1 = RING_SIZE-head;
+		size2 = size-size1;
+		memcpy( raw+head, HexRaw, size1 );
+		memcpy( raw, HexRaw+size1, size2 );
+	}
+	else
+	{
+		memcpy( raw+head, HexRaw, size );
+	}
+
+	DbgBuf.head = RING_INDEX(head+size);
+
+	spin_unlock_irqrestore(&DbgBuf.lock, flags);
+}
+
+static inline int print_raw(char *dest, char *raw, int size)
+{
+	char *start = dest;
+
+	if( size < 0 )
+		return 0;
+
+	while( size-- > 0 )
+		dest += sprintf(dest, "%02x ", *(raw++));
+
+	dest += sprintf(dest, "\n");
+	return dest - start;
+}
+
+void DbgBuffer_printRaw( void *raw, int size, const char* msg)
+{
+	char tmp[SINGLE_LENGTH];
+	char *cur = tmp;
+
+	
+	unsigned long long t;
+	unsigned long nanosec_rem;
+
+	t = cpu_clock(smp_processor_id());
+	nanosec_rem = do_div(t, 1000000000);
+	cur += sprintf( cur, "[%5lu.%06lu][%s]<%d>", (unsigned long) t, nanosec_rem / 1000,
+				  msg ? msg : "", size);
+
+	if( size < 128 )
+		cur += print_raw(cur, raw, size);
+	else
+		cur += sprintf(cur, "Raw_Data_OverSize\n");
+
+	*cur = '\0';
+	cur++;
+
+	memcpy_DbgBuffer( tmp, cur - tmp );
+}
+EXPORT_SYMBOL(DbgBuffer_printRaw);
+
+void DbgBuffer_printLog( const char * fmt, ...)
+{
+	
+	unsigned long long t;
+	unsigned long nanosec_rem;
+	char tmp[SINGLE_LENGTH];
+	char *cur = tmp;
+	va_list args;
+
+	t = cpu_clock(smp_processor_id());
+	nanosec_rem = do_div(t, 1000000000);
+
+	cur += sprintf( cur, "[%5lu.%06lu] ", (unsigned long) t, nanosec_rem / 1000 );
+
+	va_start(args, fmt);
+	cur += vsnprintf(cur, tmp+SINGLE_LENGTH-cur, fmt, args);
+	va_end(args);
+
+	
+	cur++;
+
+	if(unlikely(cur-tmp > SINGLE_LENGTH))
+		memcpy_DbgBuffer( tmp, SINGLE_LENGTH );
+	else
+		memcpy_DbgBuffer( tmp, cur - tmp );
+}
+EXPORT_SYMBOL(DbgBuffer_printLog);
+
+void dump_uart_ringbuffer(void)
+{
+	int printed, next_start;
+	char *raw;
+	unsigned long flags;
+
+	spin_lock_irqsave(&DbgBuf.lock, flags);
+	if( DbgBuf.raw[RING_INDEX(DbgBuf.head-1)] != '\0' )
+	{
+		spin_unlock_irqrestore(&DbgBuf.lock, flags);
+		printk(KERN_ERR "%s: RingBuffer is not correct.\n", __func__);
+		return;
+	}
+
+	raw = kmalloc(RING_SIZE, GFP_KERNEL);
+	if(!raw)
+	{
+		spin_unlock_irqrestore(&DbgBuf.lock, flags);
+		printk(KERN_ERR "%s: tmp buffer couldn't be allocated.\n", __func__);
+		return;
+	}
+	memcpy(raw, DbgBuf.raw + DbgBuf.head, RING_SIZE-DbgBuf.head);
+	memcpy(raw+RING_SIZE-DbgBuf.head, DbgBuf.raw, DbgBuf.head);
+	spin_unlock_irqrestore(&DbgBuf.lock, flags);
+
+	printed = next_start = 0;
+
+	printk(KERN_INFO "UART Debug Ringbuffer:\n");
+	while( printed < RING_SIZE )
+	{
+		while( raw[next_start++] != '\0' ) {}
+
+		
+		if(printed == 0)
+		{
+			printed = next_start;
+			continue;
+		}
+
+		printk(KERN_INFO "%s", raw + printed);
+		printed = next_start;
+	}
+
+	kfree(raw);
+}
+EXPORT_SYMBOL(dump_uart_ringbuffer);
+#else
+void dump_uart_ringbuffer(void)
+{ return; }
+void DbgBuffer_printRaw( void *raw, int size, const char* msg)
+{ return; }
+void DbgBuffer_printLog( const char * fmt, ...)
+{ return; }
+#endif
+
+static ssize_t show_reg(struct device *dev, struct device_attribute *attr,
+             char *buf)
+{
+   unsigned long flags;
+   struct platform_device *pdev = container_of(dev, struct
+                           platform_device, dev);
+   struct msm_hs_port *msm_uport = &q_uart_port[pdev->id];
+
+   spin_lock_irqsave(&msm_uport->uport.lock, flags);
+   msm_hs_dump_register(&msm_uport->uport);
+   spin_unlock_irqrestore(&msm_uport->uport.lock, flags);
+   dump_uart_ringbuffer();
+   return 1;
+}
 
 static ssize_t show_clock(struct device *dev, struct device_attribute *attr,
 			  char *buf)
@@ -230,6 +416,7 @@ static ssize_t set_clock(struct device *dev, struct device_attribute *attr,
 }
 
 static DEVICE_ATTR(clock, S_IWUSR | S_IRUGO, show_clock, set_clock);
+static DEVICE_ATTR(reg, S_IRUGO, show_reg, NULL);
 
 static inline unsigned int use_low_power_wakeup(struct msm_hs_port *msm_uport)
 {
@@ -252,6 +439,30 @@ static inline void msm_hs_write(struct uart_port *uport, unsigned int offset,
 				 unsigned int value)
 {
 	writel_relaxed(value, uport->membase + offset);
+}
+
+static void msm_hs_dump_register(struct uart_port *uport)
+{
+	unsigned int mr1,mr2,rfwr,dmen,sr,txfs,rxfs,misr,isr,dmrx,ipr,rx_count;
+	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
+
+	mr1 = msm_hs_read(uport, UARTDM_MR1_ADDR);
+	mr2 = msm_hs_read(uport, UARTDM_MR2_ADDR);
+	rfwr = msm_hs_read(uport, UARTDM_RFWR_ADDR);
+	dmen= msm_hs_read(uport, UARTDM_DMEN_ADDR);
+	sr = msm_hs_read(uport, UARTDM_SR_ADDR);
+
+	txfs = msm_hs_read(uport, UARTDM_TXFS_ADDR);
+	rxfs =  msm_hs_read(uport, UARTDM_RXFS_ADDR);
+	misr = msm_hs_read(uport, UARTDM_MISR_ADDR);
+	isr = msm_hs_read(uport, UARTDM_ISR_ADDR);
+	dmrx =msm_hs_read(uport, UARTDM_DMRX_ADDR);
+	ipr = msm_hs_read(uport, UARTDM_IPR_ADDR);
+	rx_count = msm_hs_read(uport, UARTDM_RX_TOTAL_SNAP_ADDR);
+
+	DbgBuffer_printLog("%s(): clk_state:0x%x clk_req_off_state:0x%x rx.flush:%u MR1:0x%x, MR2:0x%x, RFWR:0x%x, DMEN:0x%x, SR:0x%x, TXFS:0x%x, RXFS:0x%x, MISR:0x%x, ISR:0x%x, DMRX:0x%x, SNAP:0x%x, IPR:0x%x\n",
+					__func__, msm_uport->clk_state, msm_uport->clk_req_off_state, msm_uport->rx.flush,
+					mr1,mr2,rfwr,dmen,sr,txfs,rxfs,misr,isr,dmrx,rx_count,ipr);
 }
 
 static void msm_hs_release_port(struct uart_port *port)
@@ -393,6 +604,7 @@ static int __devexit msm_hs_remove(struct platform_device *pdev)
 	dev = msm_uport->uport.dev;
 
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_clock.attr);
+	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_reg.attr);
 	debugfs_remove(msm_uport->loopback_dir);
 
 	dma_unmap_single(dev, msm_uport->rx.mapped_cmd_ptr, sizeof(dmov_box),
@@ -575,11 +787,24 @@ static unsigned long msm_hs_set_bps_locked(struct uart_port *uport,
 		break;
 	}
 	mb();
+#ifdef CONFIG_QSC_MODEM
+	if (!strcmp(msm_uport->uport.state->port.tty->name,"ttyHS1")){
+		pr_info("%s: set 4Mbps as default baud rate for gsbi1.\n", __func__);
+	}else{
+		pr_info("%s: set uart clk by checking bps.\n", __func__);
+		if (bps > 460800) {
+			uport->uartclk = bps * 16;
+		} else {
+			uport->uartclk = 7372800;
+		}
+	}
+#else
 	if (bps > 460800) {
 		uport->uartclk = bps * 16;
 	} else {
 		uport->uartclk = 7372800;
 	}
+#endif
 	spin_unlock_irqrestore(&uport->lock, flags);
 	if (clk_set_rate(msm_uport->clk, uport->uartclk)) {
 		printk(KERN_WARNING "Error setting clock rate on UART\n");
@@ -587,6 +812,12 @@ static unsigned long msm_hs_set_bps_locked(struct uart_port *uport,
 		spin_lock_irqsave(&uport->lock, flags);
 		return flags;
 	}
+#ifdef CONFIG_QSC_MODEM
+	if (!strcmp(msm_uport->uport.state->port.tty->name,"ttyHS1")){
+		pr_info("%s: delay 5ms while baud rate is changing.\n", __func__);
+		mdelay(5);
+	}
+#endif
 
 	spin_lock_irqsave(&uport->lock, flags);
 	data = rxstale & UARTDM_IPR_STALE_LSB_BMSK;
@@ -660,7 +891,13 @@ static void msm_hs_set_termios(struct uart_port *uport,
 
 	mutex_lock(&msm_uport->clk_mutex);
 	spin_lock_irqsave(&uport->lock, flags);
-
+#ifdef CONFIG_QSC_MODEM
+	
+	if (!strcmp(msm_uport->uport.state->port.tty->name,"ttyHS1")){
+		pr_info("%s: Set RFR high so remote uart does not send any data.\n", __func__);
+		msm_hs_write(uport, UARTDM_CR_ADDR, RFR_HIGH);
+	}
+#endif
 	data = msm_hs_read(uport, UARTDM_DMEN_ADDR);
 	data &= ~UARTDM_RX_DM_EN_BMSK;
 	msm_hs_write(uport, UARTDM_DMEN_ADDR, data);
@@ -748,10 +985,18 @@ static void msm_hs_set_termios(struct uart_port *uport,
 		msm_uport->rx.flush = FLUSH_IGNORE;
 		mb();
 		
+		DbgBuffer_printLog("%s: Issue Discard flush\n", __func__);
 		msm_dmov_flush(msm_uport->dma_rx_channel, 0);
 	}
 
 	msm_hs_write(uport, UARTDM_IMR_ADDR, msm_uport->imr_reg);
+#ifdef CONFIG_QSC_MODEM
+	
+	if (!strcmp(msm_uport->uport.state->port.tty->name,"ttyHS1")){
+		pr_info("%s: Set RFR low so remote uart can send data.\n", __func__);
+		msm_hs_write(uport, UARTDM_CR_ADDR, RFR_LOW);
+	}
+#endif
 	mb();
 	spin_unlock_irqrestore(&uport->lock, flags);
 	mutex_unlock(&msm_uport->clk_mutex);
@@ -792,6 +1037,7 @@ static void msm_hs_stop_rx_locked(struct uart_port *uport)
 	
 	if (msm_uport->rx.flush == FLUSH_NONE) {
 		wake_lock(&msm_uport->rx.wake_lock);
+		DbgBuffer_printLog("%s: Issue discard flush\n", __func__);
 		
 		msm_dmov_flush(msm_uport->dma_rx_channel, 0);
 	}
@@ -843,6 +1089,13 @@ static void msm_hs_submit_tx_locked(struct uart_port *uport)
 
 	*tx->command_ptr_ptr = CMD_PTR_LP | DMOV_CMD_ADDR(tx->mapped_cmd_ptr);
 
+#ifdef CONFIG_SERIAL_MSM_HS_DEBUG_RINGBUFFER
+	if (!strcmp(msm_uport->uport.state->port.tty->name,"ttyHS1"))
+	{
+		DbgBuffer_printRaw(&tx_buf->buf[tx_buf->tail], tx_count, "UART_TX");
+	}
+#endif
+
 	
 	tx->tx_count = tx_count;
 	msm_hs_write(uport, UARTDM_NCF_TX_ADDR, tx_count);
@@ -883,6 +1136,8 @@ static void msm_hs_start_rx_locked(struct uart_port *uport)
 	mb();
 
 	msm_uport->rx.flush = FLUSH_NONE;
+	DbgBuffer_printLog("%s: Queueing Rx Cmd\n", __func__);
+	msm_hs_dump_register(uport);
 	msm_dmov_enqueue_cmd(msm_uport->dma_rx_channel, &msm_uport->rx.xfer);
 
 }
@@ -917,6 +1172,7 @@ static void flip_insert_work(struct work_struct *work)
 		int rx_count, rx_offset;
 		rx_count = (msm_uport->rx.buffer_pending & 0xFFFF0000) >> 16;
 		rx_offset = (msm_uport->rx.buffer_pending & 0xFFD0) >> 5;
+
 		retval = tty_insert_flip_string(tty, msm_uport->rx.buffer +
 						rx_offset, rx_count);
 		msm_uport->rx.buffer_pending &= (FIFO_OVERRUN |
@@ -1011,6 +1267,13 @@ static void msm_serial_hs_rx_tlet(unsigned long tlet_ptr)
 	
 	rmb();
 
+#ifdef CONFIG_SERIAL_MSM_HS_DEBUG_RINGBUFFER
+	if (!strcmp(msm_uport->uport.state->port.tty->name,"ttyHS1"))
+	{
+		DbgBuffer_printRaw(msm_uport->rx.buffer, rx_count, "UART_RX");
+	}
+#endif
+
 	if (0 != (uport->read_status_mask & CREAD)) {
 		retval = tty_insert_flip_string(tty, msm_uport->rx.buffer,
 						rx_count);
@@ -1101,6 +1364,7 @@ static void msm_hs_dmov_rx_callback(struct msm_dmov_cmd *cmd_ptr,
 
 	msm_uport = container_of(cmd_ptr, struct msm_hs_port, rx.xfer);
 
+	DbgBuffer_printLog("%s: DMOV Rx callback received\n", __func__);
 	tasklet_schedule(&msm_uport->rx.tlet);
 }
 
@@ -1117,6 +1381,9 @@ void msm_hs_set_mctrl_locked(struct uart_port *uport,
 
 	
 	set_rts = TIOCM_RTS & mctrl ? 0 : 1;
+
+	printk(KERN_WARNING "justdebug<smux> %s set_rts<%d>\n", __func__, set_rts);
+	WARN_ON(set_rts);
 
 	data = msm_hs_read(uport, UARTDM_MR1_ADDR);
 	if (set_rts) {
@@ -1267,6 +1534,8 @@ static int msm_hs_check_clock_off(struct uart_port *uport)
 	if (msm_uport->pclk)
 		clk_disable_unprepare(msm_uport->pclk);
 
+	msm_hs_dump_register(uport);
+	DbgBuffer_printLog("%s: UART Clock OFF\n", __func__);
 	msm_uport->clk_state = MSM_HS_CLK_OFF;
 
 	spin_lock_irqsave(&uport->lock, flags);
@@ -1316,6 +1585,7 @@ static irqreturn_t msm_hs_isr(int irq, void *dev)
 	spin_lock_irqsave(&uport->lock, flags);
 
 	isr_status = msm_hs_read(uport, UARTDM_MISR_ADDR);
+	msm_hs_dump_register(uport);
 
 	
 	if (isr_status & UARTDM_ISR_RXLEV_BMSK) {
@@ -1337,6 +1607,7 @@ static irqreturn_t msm_hs_isr(int irq, void *dev)
 
 		if (rx->flush == FLUSH_NONE) {
 			rx->flush = FLUSH_DATA_READY;
+			DbgBuffer_printLog("%s: Issue Graceful Flush\n", __func__);
 			msm_dmov_flush(msm_uport->dma_rx_channel, 1);
 		}
 	}
@@ -1533,9 +1804,9 @@ static int msm_hs_startup(struct uart_port *uport)
 
 
 	if (pdata && pdata->gpio_config) {
+		DbgBuffer_printLog("%s: Configuring UART GPIOs\n", __func__);
 		if (unlikely(pdata->gpio_config(1)))
-				dev_err(uport->dev, "Cannot configure"
-					"gpios\n");
+			dev_err(uport->dev, "Cannot configure gpios\n");
 	}
 
 	
@@ -1833,7 +2104,18 @@ static int __devinit msm_hs_probe(struct platform_device *pdev)
 	uport->fifosize = 64;
 	uport->ops = &msm_hs_ops;
 	uport->flags = UPF_BOOT_AUTOCONF;
+
+#ifdef CONFIG_QSC_MODEM
+	if (pdev->id == MSM_SERIAL_HS_ID){
+		pr_info("%s: set baud rate 4Mbps for gsbi1.\n", __func__);
+		uport->uartclk = 64000000;
+	} else{
+		pr_info("%s: set baud rate 115kbps.\n", __func__);
+		uport->uartclk = 7372800;
+	}
+#else
 	uport->uartclk = 7372800;
+#endif
 	msm_uport->imr_reg = 0x0;
 
 	msm_uport->clk = clk_get(&pdev->dev, "core_clk");
@@ -1889,6 +2171,10 @@ static int __devinit msm_hs_probe(struct platform_device *pdev)
 	msm_uport->clk_off_delay = ktime_set(0, 1000000);  
 
 	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_clock.attr);
+	if (unlikely(ret))
+		return ret;
+
+	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_reg.attr);
 	if (unlikely(ret))
 		return ret;
 
@@ -1996,6 +2282,7 @@ static void msm_hs_shutdown(struct uart_port *uport)
 	if (use_low_power_wakeup(msm_uport))
 		free_irq(msm_uport->wakeup.irq, msm_uport);
 
+	DbgBuffer_printLog("%s: shutdown: unconfiguring GPIOs\n", __func__);
 	if (pdata && pdata->gpio_config)
 		if (pdata->gpio_config(0))
 			dev_err(uport->dev, "GPIO config error\n");

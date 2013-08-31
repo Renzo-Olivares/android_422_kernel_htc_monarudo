@@ -624,7 +624,8 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 	memdesc->pagetable = pagetable;
 	memdesc->ops = &kgsl_page_alloc_ops;
 
-	memdesc->sg = kgsl_sg_alloc(sglen_alloc);
+	memdesc->sglen_alloc = sglen_alloc;
+	memdesc->sg = kgsl_sg_alloc(memdesc->sglen_alloc);
 
 	if (memdesc->sg == NULL) {
 		KGSL_CORE_ERR("vmalloc(%d) failed\n",
@@ -634,7 +635,8 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 	}
 
 
-	pages = kmalloc(sglen_alloc * sizeof(struct page *), GFP_KERNEL);
+	pages = kmalloc(memdesc->sglen_alloc * sizeof(struct page *),
+		GFP_KERNEL);
 
 	if (pages == NULL) {
 		KGSL_CORE_ERR("kmalloc (%d) failed\n",
@@ -645,8 +647,7 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 
 	kmemleak_not_leak(memdesc->sg);
 
-	memdesc->sglen_alloc = sglen_alloc;
-	sg_init_table(memdesc->sg, sglen_alloc);
+	sg_init_table(memdesc->sg, memdesc->sglen_alloc);
 
 	len = size;
 
@@ -661,7 +662,7 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 		if (page_size == PAGE_SIZE)
 			page = alloc_page(GFP_KERNEL | __GFP_HIGHMEM);
 		else {
-			page = alloc_pages(GFP_KERNEL | __GFP_HIGHMEM | __GFP_COMP |
+			page = alloc_pages(__GFP_HIGHMEM | __GFP_COMP |
 				__GFP_NO_COMPACT | __GFP_NOWARN | __GFP_NORETRY | __GFP_NO_KSWAPD,
 				get_order(page_size));
 

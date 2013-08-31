@@ -704,6 +704,12 @@ static void sre_do_work(struct work_struct *work)
 static void sre_update(unsigned long data)
 {
    struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)data;
+
+   if (!mfd->panel_power_on) {
+	PR_DISP_INFO("%s: skip sre_work\n", __func__);
+	return;
+   }
+
    queue_work(mfd->sre_wq, &mfd->sre_work);
 }
 
@@ -2410,21 +2416,36 @@ static int msm_fb_pan_display_ex(struct fb_var_screeninfo *var,
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct msm_fb_backup_type *fb_backup;
 	int ret = 0;
+
 	if (bf_supported && info->node == 2) {
 		pr_err("%s: no pan display for fb%d!",
 		       __func__, info->node);
-		return -EPERM;
+		ret = -EPERM;
+		goto do_release_timeline;
 	}
 
 	if (info->node != 0 || mfd->cont_splash_done)	
-		if ((!mfd->op_enable) || (!mfd->panel_power_on))
-			return -EPERM;
+		if ((!mfd->op_enable) || (!mfd->panel_power_on)) {
+			ret = -EPERM;
+			PR_DISP_INFO("%s: mfd->op_enable:%d mfd->panel_power_on:%d\n",
+				__func__, mfd->op_enable, mfd->panel_power_on);
+			goto do_release_timeline;
+		}
 
-	if (var->xoffset > (info->var.xres_virtual - info->var.xres))
-		return -EINVAL;
+	if (var->xoffset > (info->var.xres_virtual - info->var.xres)) {
+		PR_DISP_INFO("%s: var->xoffset:%d info->var.xres_virtual:%d info->var.xres:%d\n",
+			__func__, var->xoffset, info->var.xres_virtual, info->var.xres);
+		ret =  -EINVAL;
+		goto do_release_timeline;
+	}
 
-	if (var->yoffset > (info->var.yres_virtual - info->var.yres))
-		return -EINVAL;
+	if (var->yoffset > (info->var.yres_virtual - info->var.yres)) {
+		PR_DISP_INFO("%s: var->yoffset:%d info->var.yres_virtual:%d info->var.yres:%d\n",
+			__func__, var->yoffset, info->var.yres_virtual, info->var.yres);
+		ret =  -EINVAL;
+		goto do_release_timeline;
+	}
+
 	msm_fb_pan_idle(mfd);
 
 	mutex_lock(&mfd->sync_mutex);
@@ -2446,6 +2467,14 @@ static int msm_fb_pan_display_ex(struct fb_var_screeninfo *var,
 	mutex_unlock(&mfd->sync_mutex);
 	if (wait_for_finish)
 		msm_fb_pan_idle(mfd);
+
+do_release_timeline:
+	if (ret) {
+		PR_DISP_INFO("%s: timeline=%d, ret=%d, do release timeline\n",
+			__func__, mfd->timeline_value, ret);
+		msm_fb_release_timeline(mfd);
+	}
+
 	return ret;
 }
 
@@ -4216,30 +4245,6 @@ static int msmfb_get_metadata(struct msm_fb_data_type *mfd,
 	return ret;
 }
 
-static int do_sched_setscheduler(pid_t pid, int val)
-{
-	struct sched_param lparam;
-	struct task_struct *p;
-	int retval;
-
-	if (pid < 0)
-		return -EINVAL;
-
-	lparam.sched_priority = val;
-
-	rcu_read_lock();
-	retval = -ESRCH;
-	p = find_task_by_vpid(pid);
-
-	if (p != NULL)
-		retval = sched_setscheduler_nocheck(p, SCHED_RR, &lparam);
-
-	rcu_read_unlock();
-
-	return retval;
-}
-
-
 static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			unsigned long arg)
 {
@@ -4259,7 +4264,6 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	struct msmfb_mdp_pp mdp_pp;
 	struct mdp_buf_sync buf_sync;
 	struct msmfb_metadata mdp_metadata;
-	struct msmfb_sched_priority sched_priority_data;
 	int ret = 0;
 
 
@@ -4651,13 +4655,6 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			disp_pjt_info.client_width, disp_pjt_info.client_height);
 		if (ret)
 			return ret;
-		break;
-
-	case MSMFB_SET_SCHED_PRIORITY:
-		ret = copy_from_user(&sched_priority_data, argp, sizeof(sched_priority_data));
-		if(ret)
-			return ret;
-		do_sched_setscheduler(sched_priority_data.pid, sched_priority_data.priority);
 		break;
 
 	default:
