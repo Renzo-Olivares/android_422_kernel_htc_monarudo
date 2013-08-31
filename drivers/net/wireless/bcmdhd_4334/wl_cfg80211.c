@@ -105,7 +105,7 @@ static struct device *cfg80211_parent_dev = NULL;
 static int vsdb_supported = 0;
 struct wl_priv *wlcfg_drv_priv = NULL;
 
-u32 wl_dbg_level = WL_DBG_ERR;
+u32 wl_dbg_level = WL_DBG_DBG;
 
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
 #define MACSTR "%02x:%02x:%02x:%02x:%02x:%02x"
@@ -1202,23 +1202,32 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 	WL_DBG(("Enter \n"));
 	switch (type) {
 	case NL80211_IFTYPE_MONITOR:
+		WL_DBG(("setting type NL80211_IFTYPE_MONITOR"));
 	case NL80211_IFTYPE_WDS:
+		WL_DBG(("setting type NL80211_IFTYPE_WDS"));
 	case NL80211_IFTYPE_MESH_POINT:
+		WL_DBG(("setting type NL80211_IFTYPE_MESH_POINT"));
 		ap = 1;
 		WL_ERR(("type (%d) : currently we do not support this type\n",
 			type));
 		break;
 	case NL80211_IFTYPE_ADHOC:
+		WL_DBG(("setting type NL80211_IFTYPE_ADHOC"));
 		mode = WL_MODE_IBSS;
 		break;
 	case NL80211_IFTYPE_STATION:
+		WL_DBG(("setting type NL80211_IFTYPE_STATION"));
 	case NL80211_IFTYPE_P2P_CLIENT:
+		WL_DBG(("setting type NL80211_IFTYPE_P2P_CLIENT"));
 		mode = WL_MODE_BSS;
 		infra = 1;
 		break;
 	case NL80211_IFTYPE_AP:
+		WL_DBG(("setting type NL80211_IFTYPE_P2P_CLIENT"));
 	case NL80211_IFTYPE_AP_VLAN:
+		WL_DBG(("setting type NL80211_IFTYPE_AP_VLAN"));
 	case NL80211_IFTYPE_P2P_GO:
+		WL_DBG(("setting type NL80211_IFTYPE_P2P_GO"));
 		mode = WL_MODE_AP;
 		ap = 1;
 		break;
