@@ -664,7 +664,7 @@ extern uint dhd_force_tx_queueing;
 #define CUSTOM_GLOM_SETTING 	DEFAULT_GLOM_VALUE
 #endif
 
-#define DEFAULT_DHP_DPC_PRIO  1
+#define DEFAULT_DHP_DPC_PRIO  103
 #ifndef CUSTOM_DPC_PRIO_SETTING
 #define CUSTOM_DPC_PRIO_SETTING 	DEFAULT_DHP_DPC_PRIO
 #endif

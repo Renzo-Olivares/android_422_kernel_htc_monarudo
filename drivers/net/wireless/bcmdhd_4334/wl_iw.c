@@ -3381,7 +3381,7 @@ thr_wait_for_2nd_eth_dev(void *data)
         DAEMONIZE("wl0_eth_wthread");
 
 
-        WL_SOFTAP(("\n>%s thread started:, PID:%x\n", __FUNCTION__, current->pid));
+        WL_SOFTAP(("%s thread started:, PID:%x\n", __FUNCTION__, current->pid));
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
         if (!iw) {
@@ -3396,7 +3396,7 @@ thr_wait_for_2nd_eth_dev(void *data)
 #else
         if (down_interruptible(&tsk_ctl->sema) != 0) {
 #endif
-                WL_ERROR(("\n%s: sap_eth_sema timeout \n", __FUNCTION__));
+                WL_ERROR(("%s: sap_eth_sema timeout \n", __FUNCTION__));
                 ret = -1;
                 goto fail;
         }
@@ -3415,13 +3415,13 @@ thr_wait_for_2nd_eth_dev(void *data)
                 goto fail;
         }
 
-        WL_TRACE(("\n>%s: Thread:'softap ethdev IF:%s is detected !!!'\n\n",
+        WL_TRACE(("%s: Thread:'softap ethdev IF:%s is detected !!!'\n\n",
                 __FUNCTION__, ap_net_dev->name));
 
         ap_cfg_running = TRUE;
 
         dhd_os_spin_unlock(iw->pub, flags);
-        bcm_mdelay(500);
+        bcm_mdelay(200);
 
 
         wl_iw_send_priv_event(priv_dev, "AP_SET_CFG_OK");
@@ -3434,7 +3434,7 @@ fail:
 
         DHD_OS_WAKE_UNLOCK(iw->pub);
 
-        WL_TRACE(("\n>%s, thread completed\n", __FUNCTION__));
+        WL_TRACE(("%s, thread completed\n", __FUNCTION__));
 
         complete_and_exit(&tsk_ctl->completed, 0);
         return ret;
@@ -3747,19 +3747,16 @@ int set_ap_channel(struct net_device *dev, struct ap_profile *ap)
                                 WL_ERROR(("%s fail to set down\n", __FUNCTION__));
                         }
                         else{
-                                bcm_mdelay(100);
                                 if ((res = dev_wlc_ioctl(dev, WLC_GET_BAND, &wifi_orig_band, sizeof(u32)))) {
                                         printf("%s fail to get band\n", __FUNCTION__);
                                 }
                                 printf("wifi_orig_band[%d]\n",wifi_orig_band);
-                                bcm_mdelay(20);
                                 band = 0;
 
                                 printf("band[%d]\n",band);
                                 if ((res = dev_wlc_ioctl(dev, WLC_SET_BAND, &band, sizeof(band)))) {
                                         printf("%s fail to set band\n", __FUNCTION__);
                                 }
-                                bcm_mdelay(1000);
                                 if(ap->channel == 0)
                                         ap->channel = 6;
                                 channel = (band != WLC_BAND_5G) ? (ap->channel & 0x0000ffff) : (ap->channel >> 16);
@@ -3771,7 +3768,6 @@ int set_ap_channel(struct net_device *dev, struct ap_profile *ap)
 
                                 	}
                                 }
-                                bcm_mdelay(100);
                                 updown = 1;
                                 if ((res = dev_wlc_ioctl(dev, WLC_UP, &updown, sizeof(updown)))){
                                         WL_ERROR(("%s fail to set up\n", __FUNCTION__));
@@ -3780,6 +3776,7 @@ int set_ap_channel(struct net_device *dev, struct ap_profile *ap)
                 }
                 return res;
 }
+int turn_on_conap = 0;
 
 int set_apsta_cfg(struct net_device *dev, struct ap_profile *ap)
 {
@@ -3791,6 +3788,7 @@ int set_apsta_cfg(struct net_device *dev, struct ap_profile *ap)
         int iolen = 0;
         int mkvar_err = 0;
         int bsscfg_index = 1;
+		int err = 0;
         char buf[WLC_IOCTL_SMLEN];
 
         if (!dev) {
@@ -3812,9 +3810,23 @@ int set_apsta_cfg(struct net_device *dev, struct ap_profile *ap)
 
 
         if (ap_cfg_running == FALSE) {
+#if 0
                 
                 dhd_state_set_flags( iw->pub, DHD_ATTACH_STATE_SOFTAP, 1);
                 sema_init(&ap_eth_ctl.sema, 0);
+#else
+                
+				turn_on_conap = 1;
+                if(wlcfg_drv_priv){
+                    err = wl_cfgp2p_disable_discovery(wlcfg_drv_priv);
+                    printf("wl_cfgp2p_disable_discovery err = %d\n",err);
+                }
+				turn_on_conap = 0;
+                bcm_mdelay(100);
+
+                dhd_state_set_flags( iw->pub, DHD_ATTACH_STATE_SOFTAP, 1);
+                sema_init(&ap_eth_ctl.sema, 0);
+#endif
         } else {
 
                 if (!ap_net_dev) {
@@ -4929,7 +4941,8 @@ wl_iw_event(struct net_device *dev, wl_event_msg_t *e, void* data)
 	case WLC_E_SET_SSID:
 	{
 		if (status != WLC_E_STATUS_SUCCESS){
-			printf("%s: WLC_E_SET_SSID, connect to Ext.AP failed, restart apsta ap part!.\n", __FUNCTION__);
+			printf("%s: WLC_E_SET_SSID, connect to Ext.AP failed, status %d, reason %d,"
+				"flags %d.\n", __FUNCTION__, status, reason, flags);
 			if ( apsta_enable && ap_net_dev ) {
 				printf("%s: schedule to restart the apsta ap part\n", __FUNCTION__);
 				schedule_delayed_work(&restart_apsta, HZ);

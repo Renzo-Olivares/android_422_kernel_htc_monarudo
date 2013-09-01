@@ -491,6 +491,13 @@ int wldev_set_pktfilter_enable(struct net_device *dev, int enable)
     	wldev_set_pktfilter_enable_by_id(dev, 106, enable);
         printf("%s: pkt_filter id:106 %s\n", __FUNCTION__, (enable)?"enable":"disable");
 	}
+	if (!enable) {
+		wldev_set_pktfilter_enable_by_id(dev, 107, enable);
+		printf("%s: pkt_filter id:107 %s\n", __FUNCTION__, (enable)?"enable":"disable");
+
+		wldev_set_pktfilter_enable_by_id(dev, 108, enable);
+		printf("%s: pkt_filter id:108 %s\n", __FUNCTION__, (enable)?"enable":"disable");
+	}
         return 0;
 }
 #ifdef SOFTAP
@@ -666,6 +673,21 @@ wldev_set_scansuppress(struct net_device *dev,int enable)
 	return 0;
 }
 
+void
+wldev_set_scanabort(struct net_device *dev)
+{
+
+	s8 iovar_buf[WLC_IOCTL_SMLEN];
+	int ret = 0;
+
+	memset(iovar_buf, 0, sizeof(iovar_buf));
+	ret = wldev_iovar_setbuf(dev, "scanabort", NULL, 0, iovar_buf,
+		sizeof(iovar_buf), NULL);
+	if (ret)
+		printf("%s failed ret = %d\n", __func__, ret);
+
+}
+
 extern int wl_softap_stop(struct net_device *dev);
 
 #ifdef APSTA_CONCURRENT
@@ -727,7 +749,7 @@ wldev_set_apsta(struct net_device *dev, bool enable)
 	printf("%s: enter\n", __FUNCTION__);
 
    	if (!dev) {
-                  printf("%s: dev is null\n", __FUNCTION__);
+                  WLDEV_ERROR(("%s: dev is null\n", __FUNCTION__));
                   return -1;
    	}
 
@@ -736,14 +758,14 @@ wldev_set_apsta(struct net_device *dev, bool enable)
 		wait_for_ap_ready(1); 
 
 		if ( ap_net_dev == NULL ) {
-                        printf("%s ap_net_dev == NULL\n", __FUNCTION__);
+                        WLDEV_ERROR(("%s ap_net_dev == NULL\n", __FUNCTION__));
                         goto fail;
 		}
 
 		
 				concr_mode = 1;
 				if ((res = wldev_iovar_setint(dev, "concr_mode_set", concr_mode))) {
-						printf("%s fail to set concr_mode res 1[%d]\n", __FUNCTION__,res);
+						printf("%s fail to set concr_mode res[%d]\n", __FUNCTION__,res);
 				}
 		
 
@@ -755,12 +777,12 @@ wldev_set_apsta(struct net_device *dev, bool enable)
 		
    		mpc = 0;
       	        if ((res = wldev_iovar_setint(dev, "mpc", mpc))) {
-           	        printf("%s fail to set mpc\n", __FUNCTION__);
+           	        WLDEV_ERROR(("%s fail to set mpc\n", __FUNCTION__));
            	        goto fail;
       	        }	
 
          	if ((res = wl_iw_set_ap_security(ap_net_dev, &ap_cfg)) != 0) {
-           	        printf(" %s ERROR setting SOFTAP security in :%d\n", __FUNCTION__, res);
+           	        WLDEV_ERROR((" %s ERROR setting SOFTAP security in :%d\n", __FUNCTION__, res));
          	        goto fail;
                 } 
                 
@@ -788,11 +810,9 @@ wldev_set_apsta(struct net_device *dev, bool enable)
                 bss_setbuf.val = 1;  
 
                 if ((res = wldev_iovar_setbuf_bsscfg(dev, "bss", &bss_setbuf, sizeof(bss_setbuf), smbuf, sizeof(smbuf), 1, NULL)) < 0){
-           	         printf("%s: ERROR:%d, set bss up failed\n", __FUNCTION__, res);
+           	         WLDEV_ERROR(("%s: ERROR:%d, set bss up failed\n", __FUNCTION__, res));
            	         goto fail;
         	}
-
-	        bcm_mdelay(500);
 
             printf("prepare set frameburst \n");
             frameburst = 1;
@@ -801,21 +821,21 @@ wldev_set_apsta(struct net_device *dev, bool enable)
             }
 
 		if ((res = wldev_iovar_setint(dev, "allmulti", 1))) {
-            		printf("%s: ERROR:%d, set allmulti failed\n", __FUNCTION__, res);
+            		WLDEV_ERROR(("%s: ERROR:%d, set allmulti failed\n", __FUNCTION__, res));
             		goto fail;
 		}
 		set_ap_channel(dev,&ap_cfg);
 		ap_net_dev->operstate = IF_OPER_UP;
 	} else {
 		if ((res = wl_softap_stop(ap_net_dev))){
-           		printf("%s: ERROR:%d, call wl_softap_stop failed\n", __FUNCTION__, res);
+           		WLDEV_ERROR(("%s: ERROR:%d, call wl_softap_stop failed\n", __FUNCTION__, res));
            		goto fail;
 		}
 
 	
 		concr_mode = 0;
 		if ((res = wldev_iovar_setint(dev, "concr_mode_set", concr_mode))) {
-				printf("%s fail to set concr_mode res 2[%d]\n", __FUNCTION__,res);
+				printf("%s fail to set concr_mode res[%d]\n", __FUNCTION__,res);
 			}
 	
 
@@ -827,7 +847,7 @@ wldev_set_apsta(struct net_device *dev, bool enable)
 
 	mpc = 1;
 	     	if ((res = wldev_iovar_setint(dev, "mpc", mpc))) {
-        	   	printf("%s fail to set mpc\n", __FUNCTION__);
+        	   	WLDEV_ERROR(("%s fail to set mpc\n", __FUNCTION__));
            		goto fail;
 	      	}
 
