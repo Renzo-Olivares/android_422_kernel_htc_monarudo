@@ -792,6 +792,11 @@ sdioh_cis_read(sdioh_info_t *sd, uint func, uint8 *cisd, uint32 length)
 	return SDIOH_API_RC_SUCCESS;
 }
 
+extern struct net_device * wl_get_dev(void);
+
+#define MAX_CMD_TIMEOUT_RETRY 3
+static int cmd_timeout_counter = 0;
+
 extern SDIOH_API_RC
 sdioh_request_byte(sdioh_info_t *sd, uint rw, uint func, uint regaddr, uint8 *byte)
 {
@@ -876,7 +881,26 @@ sdioh_request_byte(sdioh_info_t *sd, uint rw, uint func, uint regaddr, uint8 *by
 	if (err_ret) {
 		printk("[WLAN] bcmsdh_sdmmc: Failed to %s byte F%d:@0x%05x=%02x, Err: %d\n",
 		                        rw ? "Write" : "Read", func, regaddr, *byte, err_ret);
+		
+		if (err_ret == -(ETIMEDOUT+50)) {
+			cmd_timeout_counter++;
+			if (cmd_timeout_counter >= MAX_CMD_TIMEOUT_RETRY) {
+				struct net_device *ndev;
+				printf("SDIO TIMEOUT trigged by wait for completion timeout! SDIO Controller something wrong!\n");
+				ndev = wl_get_dev();
+				net_os_send_hang_message(ndev);
+			}
+		}
+		else {
+			cmd_timeout_counter = 0;
+		}
+		
 	}
+	
+	else {
+		cmd_timeout_counter = 0;
+	}
+	
 
 	return ((err_ret == 0) ? SDIOH_API_RC_SUCCESS : SDIOH_API_RC_FAIL);
 }
@@ -983,6 +1007,10 @@ sdioh_request_packet(sdioh_info_t *sd, uint fix_inc, uint write, uint func,
 		memset(&mmc_req, 0, sizeof(struct mmc_request));
 		memset(&mmc_cmd, 0, sizeof(struct mmc_command));
 		memset(&mmc_dat, 0, sizeof(struct mmc_data));
+        
+        
+        sg_init_table(sd->sg_list, SDIOH_SDMMC_MAX_SG_ENTRIES);
+        
 
 		
 		pprev = pkt;

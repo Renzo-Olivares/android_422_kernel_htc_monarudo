@@ -100,6 +100,7 @@ extern PBCMSDH_SDMMC_INSTANCE gInstance;
 #define CMD_AP_MAC_LIST_SET	"AP_MAC_LIST_SET"
 #define CMD_SCAN_MINRSSI_SET	"SCAN_MINRSSI"
 #define CMD_LOW_RSSI_SET	"LOW_RSSI_IND_SET"
+#define CMD_GET_TX_FAIL                "GET_TX_FAIL"
 #if defined(HTC_TX_TRACKING)
 #define CMD_TX_TRACKING		"SET_TX_TRACKING"
 #endif
@@ -331,7 +332,7 @@ static int wl_android_scansuppress(struct net_device *net, char *command, int to
 extern s32 wl_cfg80211_scan_abort(struct net_device *ndev);
 static int wl_android_scanabort(struct net_device *net, char *command, int total_len)
 {
-
+	wldev_set_scanabort(net);
     wl_cfg80211_scan_abort(net);
     return 0;
 }
@@ -471,7 +472,35 @@ void wlan_deinit_perf(void)
 }
 
 extern void wl_cfg80211_send_priv_event(struct net_device *dev, char *flag);
+int multi_core_locked = 0;
 
+void wlan_lock_multi_core(struct net_device *dev)
+{
+	dhd_pub_t *dhdp = bcmsdh_get_drvdata();
+
+	wl_cfg80211_send_priv_event(dev, "PERF_LOCK");
+	multi_core_locked = 1;
+	if (dhdp) {
+		dhd_sched_dpc(dhdp);
+	} else {
+		printf("%s: dhdp is null", __func__);
+	}
+}
+
+void wlan_unlock_multi_core(struct net_device *dev)
+{
+	dhd_pub_t *dhdp = bcmsdh_get_drvdata();
+
+	multi_core_locked = 0;
+	if (dhdp) {
+		dhd_sched_dpc(dhdp);
+	} else {
+		printf("%s: dhdp is null", __func__);
+	}
+	wl_cfg80211_send_priv_event(dev, "PERF_UNLOCK");
+}
+
+int sta_high_ind = 0;
 void wl_android_traffic_monitor(struct net_device *dev)
 {
 	unsigned long rx_packets_count = 0;
@@ -489,10 +518,11 @@ void wl_android_traffic_monitor(struct net_device *dev)
 			if (traffic_diff > TRAFFIC_HIGH_WATER_MARK) {
 				traffic_stats_flag = TRAFFIC_STATS_HIGH;
 				wlan_lock_perf();
+				sta_high_ind = 1;
 				printf("lock cpu here, traffic-count=%ld\n", traffic_diff / 3);
                 if (traffic_diff > TRAFFIC_SUPER_HIGH_WATER_MARK) {
                     traffic_stats_flag = TRAFFIC_STATS_SUPER_HIGH;
-                    wl_cfg80211_send_priv_event(dev, "PERF_LOCK");
+					wlan_lock_multi_core(dev);
                     printf("lock 2nd cpu here, traffic-count=%ld\n", traffic_diff / 3);
                 }
 			}
@@ -500,23 +530,25 @@ void wl_android_traffic_monitor(struct net_device *dev)
         case TRAFFIC_STATS_HIGH:
             if (traffic_diff > TRAFFIC_SUPER_HIGH_WATER_MARK) {
                 traffic_stats_flag = TRAFFIC_STATS_SUPER_HIGH;
-                wl_cfg80211_send_priv_event(dev, "PERF_LOCK");
+				wlan_lock_multi_core(dev);
 				printf("lock 2nd cpu here, traffic-count=%ld\n", traffic_diff / 3);
             }
             else if (traffic_diff < TRAFFIC_LOW_WATER_MARK) {
 				traffic_stats_flag = TRAFFIC_STATS_NORMAL;
 				wlan_unlock_perf();
+				sta_high_ind = 0;
 				printf("unlock cpu here, traffic-count=%ld\n", traffic_diff / 3);
 			}
             break;
         case TRAFFIC_STATS_SUPER_HIGH:
 			if (traffic_diff < TRAFFIC_SUPER_HIGH_WATER_MARK) {
                 traffic_stats_flag = TRAFFIC_STATS_HIGH;
-                wl_cfg80211_send_priv_event(dev, "PERF_UNLOCK");
+				wlan_unlock_multi_core(dev);
 				printf("unlock 2nd cpu here, traffic-count=%ld\n", traffic_diff / 3);
                 if (traffic_diff < TRAFFIC_LOW_WATER_MARK) {
                     traffic_stats_flag = TRAFFIC_STATS_NORMAL;
                     wlan_unlock_perf();
+					sta_high_ind = 0;
                     printf("unlock cpu here, traffic-count=%ld\n", traffic_diff / 3);
                 }
             }
@@ -646,6 +678,65 @@ static int wl_android_set_tx_tracking(struct net_device *dev, char *command, int
         return bytes_written;
 }
 #endif
+
+static uint32 last_txframes = 0xffffffff;
+static uint32 last_txretrans = 0xffffffff;
+static uint32 last_txerror = 0xffffffff;
+
+#define TX_FAIL_CHECK_COUNT		100
+static int wl_android_get_tx_fail(struct net_device *dev, char *command, int total_len)
+{
+	int bytes_written;
+	wl_cnt_t cnt;
+	int error = 0;
+	uint32 curr_txframes = 0;
+	uint32 curr_txretrans = 0;
+	uint32 curr_txerror = 0;
+	uint32 txframes_diff = 0;
+	uint32 txretrans_diff = 0;
+	uint32 txerror_diff = 0;
+	uint32 diff_ratio = 0;
+	uint32 total_cnt = 0;
+
+	memset(&cnt, 0, sizeof(wl_cnt_t));
+	strcpy((char *)&cnt, "counters");
+
+	if ((error = wldev_ioctl(dev, WLC_GET_VAR, &cnt, sizeof(wl_cnt_t), 0)) < 0) {
+		DHD_ERROR(("%s: get tx fail fail\n", __func__));
+		last_txframes = 0xffffffff;
+		last_txretrans = 0xffffffff;
+		last_txerror = 0xffffffff;
+		goto exit;
+	}
+
+	curr_txframes = cnt.txframe;
+	curr_txretrans = cnt.txretrans;
+    curr_txerror = cnt.txerror;
+    
+	if (last_txframes != 0xffffffff) {
+		if ((curr_txframes >= last_txframes) && (curr_txretrans >= last_txretrans) && (curr_txerror >= last_txerror)) {
+		    
+			txframes_diff = curr_txframes - last_txframes;
+			txretrans_diff = curr_txretrans - last_txretrans;
+			txerror_diff = curr_txerror - last_txerror;	
+			total_cnt = txframes_diff + txretrans_diff + txerror_diff;
+			
+			if (total_cnt > TX_FAIL_CHECK_COUNT) {
+				diff_ratio = ((txretrans_diff + txerror_diff)  * 100) / total_cnt;
+			}
+		}					
+	}
+	last_txframes = curr_txframes;
+	last_txretrans = curr_txretrans;
+	last_txerror = curr_txerror;
+
+exit:
+	printf("TXPER:%d, txframes: %d ,txretrans: %d, txerror: %d, total: %d\n", diff_ratio, txframes_diff, txretrans_diff, txerror_diff, total_cnt);
+	bytes_written = snprintf(command, total_len, "%s %d",
+		CMD_GET_TX_FAIL, diff_ratio);
+
+	return bytes_written;
+}
 
 #ifdef ROAM_API
 int wl_android_set_roam_trigger(
@@ -1094,7 +1185,7 @@ wl_android_get_assoc_sta_list(struct net_device *dev, char *buf, int len)
 	char mac_lst[256];
 	char *p_mac_str;
 
-	bcm_mdelay(500);
+	bcm_mdelay(100);
 	maclist->count = 10;
 	ret = wldev_ioctl(dev, WLC_GET_ASSOCLIST, buf, len, 0);
 
@@ -1926,6 +2017,7 @@ static int wl_android_auto_channel(struct net_device *dev, char *command, int to
 	int isup = 0;
 	int bytes_written = 0;
 	int apsta_var = 0;
+	int band = WLC_BAND_2G;
 
 	DHD_TRACE(("Enter %s\n", __func__));
 
@@ -1964,11 +2056,12 @@ static int wl_android_auto_channel(struct net_device *dev, char *command, int to
 
 auto_channel_retry:
 	memset(&null_ssid, 0, sizeof(wlc_ssid_t));
-	null_ssid.SSID_len = strlen("test");
-	strncpy(null_ssid.SSID, "test", null_ssid.SSID_len);
+	null_ssid.SSID_len = strlen("");
+	strncpy(null_ssid.SSID, "", null_ssid.SSID_len);
 
 	res |= wldev_ioctl(dev, WLC_SET_SPECT_MANAGMENT, &spec, sizeof(spec), 1);
 	res |= wldev_ioctl(dev, WLC_SET_SSID, &null_ssid, sizeof(null_ssid), 1);
+	res |= wldev_ioctl(dev, WLC_SET_BAND, &band, sizeof(band), 1);
 	res |= wldev_ioctl(dev, WLC_UP, &updown, sizeof(updown), 1);
 
 	memset(&null_ssid, 0, sizeof(wlc_ssid_t));
@@ -2031,6 +2124,9 @@ get_channel_retry:
 		channel = chosen;
 	}
 
+	band = WLC_BAND_AUTO;
+	res |= wldev_ioctl(dev, WLC_SET_BAND, &band, sizeof(band), 1);
+
 fail :
 	res = wldev_ioctl(dev, WLC_UP, &updown, sizeof(updown), 1);
 
@@ -2077,6 +2173,9 @@ int wl_android_wifi_on(struct net_device *dev)
 #ifdef PROP_TXSTATUS
 		dhd_wlfc_init(bcmsdh_get_drvdata());
 #endif
+		last_txframes = 0xffffffff;
+		last_txretrans = 0xffffffff;
+		last_txerror = 0xffffffff;
 		g_wifi_on = TRUE;
 	}
 
@@ -2097,8 +2196,7 @@ exit:
 	return ret;
 }
 
-extern int hotspot_hight_ind;
-
+extern int hotspot_high_ind;
 int wl_android_wifi_off(struct net_device *dev)
 {
 	int ret = 0;
@@ -2124,7 +2222,7 @@ int wl_android_wifi_off(struct net_device *dev)
 			printf("Don't send AP_DOWN due to alreayd hang\n");
 		}
 		else {
-			wl_iw_send_priv_event(dev, "PERF_UNLOCK");
+			wlan_unlock_multi_core(dev);
 			wl_iw_send_priv_event(dev, "AP_DOWN");
 		}
 	}
@@ -2138,12 +2236,16 @@ int wl_android_wifi_off(struct net_device *dev)
 		dhd_customer_gpio_wlan_ctrl(WLAN_RESET_OFF);
 		g_wifi_on = FALSE;
 	}
-    wl_cfg80211_send_priv_event(dev, "PERF_UNLOCK");
+	wlan_unlock_multi_core(dev);
 	wlan_unlock_perf();
-	hotspot_hight_ind = 0;
+	hotspot_high_ind = 0;
+	sta_high_ind = 0;
  	
-	if (bus_perf_client)
+	if (bus_perf_client) {
 		msm_bus_scale_unregister_client(bus_perf_client);
+		bus_perf_client = 0;
+	}
+	bus_scale_table = NULL;
 
  	msm_otg_setclk(0);
  	
@@ -2403,7 +2505,7 @@ extern int wl_iw_send_priv_event(struct net_device *dev, char *flag);
 
 int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 {
-#define PRIVATE_COMMAND_MAX_LEN	4096
+#define PRIVATE_COMMAND_MAX_LEN	8192
 	int ret = 0;
 	char *command = NULL;
 	int bytes_written = 0;
@@ -2572,7 +2674,14 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 #ifndef CUSTOMER_SET_COUNTRY
 	
 	else if (strnicmp(command, CMD_COUNTRY, strlen(CMD_COUNTRY)) == 0) {
+#if 1 
+		char country_code[3];
+		country_code[0] = *(command + strlen(CMD_COUNTRY) + 1);
+		country_code[1] = *(command + strlen(CMD_COUNTRY) + 2);
+		country_code[2] = '\0';
+#else
 		char *country_code = command + strlen(CMD_COUNTRY) + 1;
+#endif
 		bytes_written = wldev_set_country(net, country_code);
 		wl_update_wiphybands(NULL);
 	}
@@ -2615,18 +2724,18 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	}
 #endif 
 #ifdef PNO_SUPPORT
+#if 0
 	else if (strnicmp(command, CMD_PNOSSIDCLR_SET, strlen(CMD_PNOSSIDCLR_SET)) == 0) {
 		bytes_written = dhd_dev_pno_reset(net);
 	}
-#if 0
 	else if (strnicmp(command, CMD_PNOSETUP_SET, strlen(CMD_PNOSETUP_SET)) == 0) {
 		bytes_written = wl_android_set_pno_setup(net, command, priv_cmd.total_len);
 	}
-#endif
 	else if (strnicmp(command, CMD_PNOENABLE_SET, strlen(CMD_PNOENABLE_SET)) == 0) {
 		uint pfn_enabled = *(command + strlen(CMD_PNOENABLE_SET) + 1) - '0';
 		bytes_written = dhd_dev_pno_enable(net, pfn_enabled);
 	}
+#endif
 #endif
 #ifdef WL_CFG80211
 	else if (strnicmp(command, CMD_MAC_ADDR, strlen(CMD_MAC_ADDR)) == 0) {
@@ -2650,6 +2759,9 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		int skip = strlen(CMD_P2P_SET_PS) + 1;
 		bytes_written = wl_cfg80211_set_p2p_ps(net, command + skip,
 			priv_cmd.total_len - skip);
+	}
+	else if (strnicmp(command, CMD_GET_TX_FAIL, strlen(CMD_GET_TX_FAIL)) == 0) {
+		bytes_written = wl_android_get_tx_fail(net, command, priv_cmd.total_len);
 	}
 #ifdef WL_CFG80211
 	else if (strnicmp(command, CMD_SET_AP_WPS_P2P_IE,
@@ -2982,6 +3094,8 @@ int wifi_get_irq_number(unsigned long *irq_flags_ptr)
 #endif
 }
 
+extern bool dhd_attached;
+
 int wifi_set_power(int on, unsigned long msec)
 {
 	
@@ -2995,7 +3109,7 @@ int wifi_set_power(int on, unsigned long msec)
 	}
 
 	
-	if (!on) {
+	if (!on && dhd_attached == TRUE) {
 		if (gInstance && gInstance->func[0] && gInstance->func[0]->card) {
 			mmc = gInstance->func[0]->card->host;
 			host = (void *)mmc->private;

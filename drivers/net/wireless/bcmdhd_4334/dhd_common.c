@@ -832,7 +832,8 @@ wl_show_host_event(wl_event_msg_t *event, void *event_data)
 		if (status == WLC_E_STATUS_SUCCESS) {
 			DHD_ERROR(("MACEVENT: %s, MAC %s\n", event_name, eabuf));
 		} else if (status == WLC_E_STATUS_FAIL) {
-			DHD_ERROR(("MACEVENT: %s, failed\n", event_name));
+			DHD_ERROR(("MACEVENT: %s, failed, status %d, reason %d, flags %d.\n",
+						event_name, status, reason, flags));
 		} else if (status == WLC_E_STATUS_NO_NETWORKS) {
 			DHD_ERROR(("MACEVENT: %s, no networks found\n", event_name));
 		} else {
@@ -1257,12 +1258,6 @@ int dhd_set_pktfilter(dhd_pub_t * dhd, int add, int id, int offset, char *mask, 
 	
 	bcm_mkiovar("pkt_filter_delete", (char *)&pkt_id, 4, buf, sizeof(buf));
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, sizeof(buf), TRUE, 0);
-#if defined(APSTA_CONCURRENT) && defined(SOFTAP)
-	if ( ap_net_dev ) {
-		printf("%s: apsta concurrent running, just add but don't enable rule id:%d\n", __FUNCTION__, pkt_id);
-		return 0;
-	}	
-#endif
 
 	if (!add) {
 		return 0;
@@ -1329,6 +1324,15 @@ int dhd_set_pktfilter(dhd_pub_t * dhd, int add, int id, int offset, char *mask, 
 
 	enable_parm.id = htod32(pkt_id);
 	enable_parm.enable = htod32(1);
+	
+#if defined(APSTA_CONCURRENT) && defined(SOFTAP)
+		if ( ap_net_dev ) {
+			printf("%s: apsta concurrent running, just add but don't enable rule id:%d\n", __FUNCTION__, pkt_id);
+			enable_parm.enable = htod32(0);
+		} else
+			enable_parm.enable = htod32(1);
+#endif
+	
 	bcm_mkiovar("pkt_filter_enable", (char *)&enable_parm,
 		sizeof(wl_pkt_filter_enable_t), buf, sizeof(buf));
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, buf, sizeof(buf), TRUE , 0);

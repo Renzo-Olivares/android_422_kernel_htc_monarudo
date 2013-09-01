@@ -551,6 +551,9 @@ wl_cfgp2p_init_discovery(struct wl_priv *wl)
 	return ret;
 }
 
+
+extern int turn_on_conap;
+
 static s32
 wl_cfgp2p_deinit_discovery(struct wl_priv *wl)
 {
@@ -568,7 +571,19 @@ wl_cfgp2p_deinit_discovery(struct wl_priv *wl)
 	ret = wl_cfgp2p_set_discovery(wl, 0);
 
 
-	wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) = 0;
+
+ 	CFGP2P_DBG(("wl_to_p2p_bss_ndev(wl, P2PAPI_BSSCFG_PRIMARY)-->dev[%p]" 
+ 	             "wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE)-->bssidx[%d]",
+	                wl_to_p2p_bss_ndev(wl, P2PAPI_BSSCFG_PRIMARY),wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE)));
+
+	if(turn_on_conap){	 
+		wl_cfgp2p_clear_management_ie(wl, wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE));
+		wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) = 0;
+		turn_on_conap = 0;
+	}	
+	else{
+		wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) = WL_INVALID;
+	}
 	wl_to_p2p_bss_ndev(wl, P2PAPI_BSSCFG_DEVICE) = NULL;
 
 	return ret;
@@ -615,7 +630,12 @@ wl_cfgp2p_disable_discovery(struct wl_priv *wl)
 {
 	s32 ret = BCME_OK;
 	CFGP2P_DBG((" enter\n"));
-	wl_clr_p2p_status(wl, DISCOVERY_ON);
+
+    if (!wl->p2p) {
+		WL_ERR(("wl->p2p is not initialized\n"));
+		ret = BCME_ERROR;
+		goto exit;
+	}
 
 	if (wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE) == 0) {
 		CFGP2P_ERR((" do nothing, not initialized\n"));
@@ -635,6 +655,7 @@ wl_cfgp2p_disable_discovery(struct wl_priv *wl)
 	}
 #endif
 	wl_clr_p2p_status(wl, DISCOVERY_ON);
+	wl->p2p->status = 0;
 	ret = wl_cfgp2p_deinit_discovery(wl);
 
 exit:
@@ -816,54 +837,54 @@ wl_cfgp2p_parse_vndr_ies(u8 *parse, u32 len,
 {
 	s32 err = BCME_OK;
 	vndr_ie_t *vndrie;
+	bcm_tlv_t *ie;
 	struct parsed_vndr_ie_info *parsed_info;
 	u32	count = 0;
 	s32 remained_len;
-	u8 *elt;
 
-	elt = parse;
 	remained_len = (s32)len;
 	memset(vndr_ies, 0, sizeof(*vndr_ies));
 
 	WL_INFO(("---> len %d\n", len));
 
-	while (remained_len && count < MAX_VNDR_IE_NUMBER &&
-		(vndrie = (vndr_ie_t *)bcm_parse_tlvs(elt,
-		remained_len, DOT11_MNG_VS_ID))) {
-		
-		if (vndrie->len < (VNDR_IE_MIN_LEN + 1)) {
-			WL_ERR(("%s: invalid vndr ie. length is too small %d\n",
-				__FUNCTION__, vndrie->len));
-			elt += (vndrie->len + TLV_HDR_LEN);
-			remained_len -= (vndrie->len + TLV_HDR_LEN);
-			continue;
+	ie = (bcm_tlv_t *) parse;
+	if (!bcm_valid_tlv(ie, remained_len))
+		ie = NULL;
+	while (ie) {
+		if (count >= MAX_VNDR_IE_NUMBER)
+			break;
+		if (ie->id == DOT11_MNG_VS_ID) {
+			vndrie = (vndr_ie_t *) ie;
+			
+			if (vndrie->len < (VNDR_IE_MIN_LEN + 1)) {
+				CFGP2P_ERR(("%s: invalid vndr ie. length is too small %d\n",
+					__FUNCTION__, vndrie->len));
+				goto end;
+			}
+			
+			if (!bcmp(vndrie->oui, (u8*)WPA_OUI, WPA_OUI_LEN) &&
+				((vndrie->data[0] == WPA_OUI_TYPE) ||
+				(vndrie->data[0] == WME_OUI_TYPE))) {
+				CFGP2P_DBG(("Found WPA/WME oui. Do not add it\n"));
+				goto end;
+			}
+
+			parsed_info = &vndr_ies->ie_info[count++];
+
+			
+			parsed_info->ie_ptr = (char *)vndrie;
+			parsed_info->ie_len = (vndrie->len + TLV_HDR_LEN);
+			memcpy(&parsed_info->vndrie, vndrie, sizeof(vndr_ie_t));
+
+			vndr_ies->count = count;
+
+			CFGP2P_DBG(("\t ** OUI %02x %02x %02x, type 0x%02x \n",
+				parsed_info->vndrie.oui[0], parsed_info->vndrie.oui[1],
+				parsed_info->vndrie.oui[2], parsed_info->vndrie.data[0]));
 		}
 
-		
-		if (!bcmp(vndrie->oui, (u8*)WPA_OUI, WPA_OUI_LEN) &&
-			((vndrie->data[0] == WPA_OUI_TYPE) ||
-			(vndrie->data[0] == WME_OUI_TYPE))) {
-			CFGP2P_DBG(("Found WPA/WME oui. Do not add it\n"));
-			elt += (vndrie->len + TLV_HDR_LEN);
-			remained_len -= (vndrie->len + TLV_HDR_LEN);
-			continue;
-		}
-
-		parsed_info = &vndr_ies->ie_info[count++];
-
-		
-		parsed_info->ie_ptr = (char *)vndrie;
-		parsed_info->ie_len = (vndrie->len + TLV_HDR_LEN);
-		memcpy(&parsed_info->vndrie, vndrie, sizeof(vndr_ie_t));
-
-		vndr_ies->count = count;
-
-		WL_INFO(("\t ** OUI %02x %02x %02x, type 0x%02x \n",
-			parsed_info->vndrie.oui[0], parsed_info->vndrie.oui[1],
-			parsed_info->vndrie.oui[2], parsed_info->vndrie.data[0]));
-
-		elt += (vndrie->len + TLV_HDR_LEN);
-		remained_len -= (vndrie->len + TLV_HDR_LEN);
+end:
+		ie = bcm_next_tlv(ie, &remained_len);
 	}
 
 	return err;
