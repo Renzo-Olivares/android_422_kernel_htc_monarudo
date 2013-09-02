@@ -205,6 +205,9 @@ struct msm_sensor_fn_t {
     void (*sensor_yushanII_set_output_format)(struct msm_sensor_ctrl_t *sensor,int res, Ilp0100_structFrameFormat *output_format);
 	void (*sensor_yushanII_set_parm)(struct msm_sensor_ctrl_t *sensor, int res,Ilp0100_structSensorParams *YushanII_sensor);
     void (*sensor_yushanII_set_IQ)(struct msm_sensor_ctrl_t *sensor,int*,int*,int*,struct yushanii_cls*);
+    void(*sensor_yushanII_active_hold)(void);
+    int (*sensor_yushanII_ae_updated)(void);
+    void(*sensor_yushanII_set_default_ae)(struct msm_sensor_ctrl_t *, uint8_t);
 #endif
 };
 

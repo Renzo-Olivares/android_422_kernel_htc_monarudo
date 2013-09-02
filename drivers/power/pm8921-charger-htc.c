@@ -266,6 +266,9 @@ struct pm8921_chg_chip {
 	int				mbat_in_gpio;
 	int				wlc_tx_gpio;
 	int				is_embeded_batt;
+        int                             eoc_ibat_thre_ma;
+        int                             ichg_threshold_ua;
+        int                             ichg_regulation_thr_ua;
 	struct delayed_work		update_heartbeat_work;
 	struct delayed_work		eoc_work;
 	struct delayed_work		recharge_check_work;
