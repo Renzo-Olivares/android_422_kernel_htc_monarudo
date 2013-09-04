@@ -1423,9 +1423,8 @@ static void cgroup_task_migrate(struct cgroup *cgrp, struct cgroup *oldcgrp,
 		list_move(&tsk->cg_list, &newcg->tasks);
 	write_unlock(&css_set_lock);
 
-	put_css_set(oldcg);
-
 	set_bit(CGRP_RELEASABLE, &oldcgrp->flags);
+	put_css_set(oldcg);
 }
 
 int cgroup_attach_task(struct cgroup *cgrp, struct task_struct *tsk)
@@ -3531,8 +3530,10 @@ static const struct file_operations proc_cgroupstats_operations = {
 
 void cgroup_fork(struct task_struct *child)
 {
+	task_lock(current);
 	child->cgroups = current->cgroups;
 	get_css_set(child->cgroups);
+	task_unlock(current);
 	INIT_LIST_HEAD(&child->cg_list);
 }
 
@@ -3563,9 +3564,10 @@ void cgroup_post_fork(struct task_struct *child)
 	 */
 	if (use_task_css_set_links) {
 		write_lock(&css_set_lock);
-		if (list_empty(&child->cg_list)) {
+		task_lock(child);
+		if (list_empty(&child->cg_list))
 			list_add(&child->cg_list, &child->cgroups->tasks);
-		}
+		task_unlock(child);
 		write_unlock(&css_set_lock);
 	}
 }
