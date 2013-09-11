@@ -19,7 +19,7 @@
 #include <sound/q6asm.h>
 #include <linux/module.h>
 #include <linux/gpio.h>
-#include "board-monarudo.h"
+#include "board-m7.h"
 #include <mach/tpa6185.h>
 #include <mach/rt5501.h>
 #include "../sound/soc/msm/msm-pcm-routing.h"
