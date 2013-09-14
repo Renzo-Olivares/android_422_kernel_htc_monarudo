@@ -146,6 +146,7 @@ config ARCH_MSM8960
 	select MSM_RUN_QUEUE_STATS
 	select ARM_HAS_SG_CHAIN
 	select MSM_KRAIT_WFE_FIXUP
+	select MSM_IOMMU_GPU_SYNC
 
 config ARCH_MSM8930
 	bool "MSM8930"
@@ -291,12 +292,6 @@ config MACH_VALENTE_WX
 	bool "Valente#WX"
 	help
 	  Support for the HTC Valente#WX
-
-config MACH_ZIP_CL_MI2S_DATA_SWITCH
-	depends on MACH_ZIP_CL
-	bool "ZIP_CL_MI2S_DATA_SWITCH"
-	help
-	  Support for the workaround for ZIP_CL MI2S data Input/Output switch
 
 config ARCH_FSM9XXX
 	bool "FSM9XXX"
@@ -463,6 +458,10 @@ config PERFLOCK
         depends on ARCH_APQ8064 || ARCH_MSM8960 || ARCH_MSM8X60 || ARCH_QSD8X50 || ARCH_MSM7X30 || ARCH_MSM7X00A || ARCH_MSM7227 || ARCH_MSM7225
         default n
         bool "HTC Performance Lock"
+
+config DEBUG_KSWAPD
+        default n
+        bool "HTC Debug Kswapd busy"
 
 config PERFLOCK_FIX_UP
         depends on CPU_FREQ
@@ -2761,5 +2760,10 @@ config MSM_CPU_PWRCTL
 	  stand alone power collapse operation. Selecting this option
 	  ensures that they are always off.
 
+config QUALCOMM_WLAN_PXO
+	default n
+	bool "Use PXO for WLAN clock source"
+	help
+	  Use PXO for clock source of WLAN chip
 endif
 

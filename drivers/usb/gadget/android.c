@@ -52,6 +52,7 @@ static int os_type;
 #include "f_rmnet_sdio.c"
 #include "f_rmnet_smd_sdio.c"
 #include "f_rmnet.c"
+#include "f_audio_source.c"
 #include "f_mass_storage.c"
 #include "u_serial.c"
 #include "u_sdio.c"
@@ -78,7 +79,6 @@ static int os_type;
 #endif
 #include "u_ether.c"
 #include "u_bam_data.c"
-#include "f_mbim.c"
 #ifdef CONFIG_USB_ANDROID_NCM
 #include "f_ncm.c"
 #endif
@@ -166,6 +166,8 @@ struct android_dev {
 	int (*match)(int product_id, int intrsharing);
 	bool bEnablePerfLock;
 	int autobot_mode;
+	bool bSwitchFunWhileInit;
+	unsigned SwitchFunCombination;
 };
 
 static struct class *android_class;
@@ -628,7 +630,9 @@ static struct android_usb_function rmnet_function = {
 	.performance_lock = 1,
 };
 
+#if 0
 #define MAX_MBIM_INSTANCES 1
+
 
 static int mbim_function_init(struct android_usb_function *f,
 					 struct usb_composite_dev *cdev)
@@ -653,6 +657,7 @@ static struct android_usb_function mbim_function = {
 	.bind_config	= mbim_function_bind_config,
 	.init		= mbim_function_init,
 };
+#endif
 
 static char diag_clients[32];	    
 static char diag_string[4][32];
@@ -1658,6 +1663,69 @@ static struct android_usb_function accessory_function = {
 	.ctrlrequest	= accessory_function_ctrlrequest,
 };
 
+
+static int audio_source_function_init(struct android_usb_function *f,
+			struct usb_composite_dev *cdev)
+{
+	struct audio_source_config *config;
+
+	config = kzalloc(sizeof(struct audio_source_config), GFP_KERNEL);
+	if (!config)
+		return -ENOMEM;
+	config->card = -1;
+	config->device = -1;
+	f->config = config;
+	return 0;
+}
+
+static void audio_source_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+}
+
+static int audio_source_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct audio_source_config *config = f->config;
+
+	return audio_source_bind_config(c, config);
+}
+
+static void audio_source_function_unbind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct audio_source_config *config = f->config;
+
+	config->card = -1;
+	config->device = -1;
+}
+
+static ssize_t audio_source_pcm_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct audio_source_config *config = f->config;
+
+	
+	return sprintf(buf, "%d %d\n", config->card, config->device);
+}
+
+static DEVICE_ATTR(pcm, S_IRUGO | S_IWUSR, audio_source_pcm_show, NULL);
+
+static struct device_attribute *audio_source_function_attributes[] = {
+	&dev_attr_pcm,
+	NULL
+};
+
+static struct android_usb_function audio_source_function = {
+	.name		= "audio_source",
+	.init		= audio_source_function_init,
+	.cleanup	= audio_source_function_cleanup,
+	.bind_config	= audio_source_function_bind_config,
+	.unbind_config	= audio_source_function_unbind_config,
+	.attributes	= audio_source_function_attributes,
+};
+
 static int projector_function_init(struct android_usb_function *f,
 		struct usb_composite_dev *cdev)
 {
@@ -1940,6 +2008,7 @@ struct android_usb_function projector2_function = {
 static struct android_usb_function *supported_functions[] = {
 	&rndis_function,
 	&accessory_function,
+	&audio_source_function,
 	&mtp_function,
 	&ptp_function,
 #ifdef CONFIG_USB_ANDROID_NCM
@@ -1966,7 +2035,6 @@ static struct android_usb_function *supported_functions[] = {
  	&rmnet_sdio_function,
  	&rmnet_smd_sdio_function,
  	&ccid_function,
-	&mbim_function,
 	NULL
 };
 
@@ -2527,6 +2595,7 @@ static void android_disconnect(struct usb_gadget *gadget)
 	unsigned long flags;
 
 	composite_disconnect(gadget);
+	acc_disconnect();
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	dev->connected = 0;
@@ -2738,6 +2807,11 @@ static void android_usb_init_work(struct work_struct *data)
 	usb_gadget_connect(cdev->gadget);
 	dev->enabled = true;
 	pr_info("%s: ret: %d\n", __func__, ret);
+	if (dev->bSwitchFunWhileInit == true) {
+		pr_info("%s: Switch function while init = %d, func = %d\n", __func__, dev->bSwitchFunWhileInit, dev->SwitchFunCombination);
+		android_switch_function(dev->SwitchFunCombination);
+		dev->bSwitchFunWhileInit = false;
+	}
 }
 
 

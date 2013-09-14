@@ -28,7 +28,6 @@
 #include <linux/random.h>
 #include <linux/wakelock.h>
 #include <linux/pm.h>
-#include <linux/slab.h>
 
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
@@ -1388,50 +1387,6 @@ static unsigned int mmc_erase_timeout(struct mmc_card *card,
 		return mmc_mmc_erase_timeout(card, arg, qty);
 }
 
-static int
-mmc_send_single_read(struct mmc_card *card, struct mmc_host *host, unsigned int from)
-{
-	struct mmc_request mrq = {NULL};
-	struct mmc_command cmd = {0};
-	struct mmc_data data = {0};
-	struct scatterlist sg;
-	char buf[512];
-	void *data_buf;
-	int len = 512;
-
-	data_buf = kmalloc(len, GFP_KERNEL);
-	if (data_buf == NULL)
-		return -ENOMEM;
-
-	mrq.cmd = &cmd;
-	mrq.data = &data;
-
-	cmd.opcode = MMC_READ_SINGLE_BLOCK;
-	cmd.arg = from;
-
-	cmd.flags = MMC_RSP_SPI_R1 | MMC_RSP_R1 | MMC_CMD_ADTC;
-
-	data.blksz = 512;
-	data.blocks = 1;
-	data.flags = MMC_DATA_READ;
-	data.sg = &sg;
-	data.sg_len = 1;
-
-	sg_init_one(&sg, data_buf, len);
-	mmc_set_data_timeout(&data, card);
-	mmc_wait_for_req(host, &mrq);
-
-	memcpy(buf, data_buf, len);
-	kfree(data_buf);
-
-	if (cmd.error)
-		return cmd.error;
-	if (data.error)
-		return data.error;
-
-	return 0;
-}
-
 static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 			unsigned int to, unsigned int arg)
 {
@@ -1453,10 +1408,6 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 		from <<= 9;
 		to <<= 9;
 	}
-
-	if (card->cid.manfid == 0x90)
-		if (mmc_send_single_read(card, card->host, from) != 0)
-			pr_err("%s, Dummy read failed\n", __func__);
 
 	start = ktime_get();
 	if (mmc_card_sd(card))

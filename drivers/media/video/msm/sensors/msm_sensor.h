@@ -28,11 +28,8 @@
 #include <media/v4l2-subdev.h>
 #include "msm_camera_i2c.h"
 #include "msm_camera_eeprom.h"
-
-#ifdef CONFIG_RAWCHIPII
 #include "../yushanII/ilp0100_ST_definitions.h"
 #include <media/linux_yushanii.h>
-#endif
 
 #define Q8  0x00000100
 #define Q10 0x00000400
@@ -101,24 +98,26 @@ struct msm_sensor_reg_t {
 	struct msm_camera_i2c_reg_conf *stop_stream_conf;
 	uint8_t stop_stream_conf_size;
 
-#ifdef CONFIG_RAWCHIPII
 	struct msm_camera_i2c_reg_conf *start_stream_conf_yushanii;
 	uint8_t start_stream_conf_size_yushanii;
 	struct msm_camera_i2c_reg_conf *stop_stream_conf_yushanii;
 	uint8_t stop_stream_conf_size_yushanii;
-#endif
 
 	struct msm_camera_i2c_reg_conf *group_hold_on_conf;
 	uint8_t group_hold_on_conf_size;
 	struct msm_camera_i2c_reg_conf *group_hold_off_conf;
 	uint8_t group_hold_off_conf_size;
+
+	struct msm_camera_i2c_reg_conf *group_hold_on_conf_hdr;
+	uint8_t group_hold_on_conf_size_hdr;
+	struct msm_camera_i2c_reg_conf *group_hold_off_conf_hdr;
+	uint8_t group_hold_off_conf_size_hdr;
+
 	struct msm_camera_i2c_conf_array *init_settings;
 	uint8_t init_size;
 
-#ifdef CONFIG_RAWCHIPII
 	struct msm_camera_i2c_conf_array *init_settings_yushanii;
 	uint8_t init_size_yushanii;
-#endif
 
 	struct msm_camera_i2c_conf_array *init_settings_2;
 	uint8_t init_size_2;
@@ -126,9 +125,7 @@ struct msm_sensor_reg_t {
 	struct msm_camera_i2c_conf_array *mode_settings;
 	struct msm_camera_i2c_conf_array *no_effect_settings;
 	struct msm_sensor_output_info_t *output_settings;
-#ifdef CONFIG_RAWCHIPII
 	struct msm_sensor_output_info_t *output_settings_yushanii;
-#endif
 	uint8_t num_conf;
 };
 
@@ -156,6 +153,8 @@ struct msm_sensor_fn_t {
 	void (*sensor_stop_stream) (struct msm_sensor_ctrl_t *);
 	void (*sensor_group_hold_on) (struct msm_sensor_ctrl_t *);
 	void (*sensor_group_hold_off) (struct msm_sensor_ctrl_t *);
+	void (*sensor_group_hold_on_hdr) (struct msm_sensor_ctrl_t *);
+	void (*sensor_group_hold_off_hdr) (struct msm_sensor_ctrl_t *);
 
 	int32_t (*sensor_set_fps) (struct msm_sensor_ctrl_t *,
 			struct fps_cfg *);
@@ -197,7 +196,6 @@ struct msm_sensor_fn_t {
 	int (*sensor_write_output_settings_specific)(struct msm_sensor_ctrl_t *s_ctrl, uint16_t res); 
 	int (*sensor_i2c_read_otp)(struct sensor_cfg_data *cdata, struct msm_sensor_ctrl_t *s_ctrl);
 
-#ifdef CONFIG_RAWCHIPII
 	void (*sensor_yushanii_status_line_modifier2)(uint8_t*);
 	void (*sensor_yushanii_status_line_modifier)(uint16_t*);
 	void (*sensor_yushanii_line_length_pclk_modifier)(uint16_t*);
@@ -205,7 +203,9 @@ struct msm_sensor_fn_t {
     void (*sensor_yushanII_set_output_format)(struct msm_sensor_ctrl_t *sensor,int res, Ilp0100_structFrameFormat *output_format);
 	void (*sensor_yushanII_set_parm)(struct msm_sensor_ctrl_t *sensor, int res,Ilp0100_structSensorParams *YushanII_sensor);
     void (*sensor_yushanII_set_IQ)(struct msm_sensor_ctrl_t *sensor,int*,int*,int*,struct yushanii_cls*);
-#endif
+	void(*sensor_yushanII_active_hold)(void);
+	int (*sensor_yushanII_ae_updated)(void);
+	void(*sensor_yushanII_set_default_ae)(struct msm_sensor_ctrl_t *, uint8_t);
 };
 
 struct msm_sensor_ctrl_t {
@@ -251,18 +251,20 @@ struct msm_sensor_ctrl_t {
 	int mirror_flip;	
 	struct mutex *sensor_first_mutex;  
 	int hdr_mode;
-#ifdef CONFIG_RAWCHIPII
 	int yushanII_switch_virtual_channel;
-#endif
 	int adjust_y_output_size;
+	int adjust_frame_length_line;
 	uint8_t driver_ic;
+	bool ews_enable;
+	bool actived_ae;	
 };
 
 void msm_sensor_start_stream(struct msm_sensor_ctrl_t *s_ctrl);
 void msm_sensor_stop_stream(struct msm_sensor_ctrl_t *s_ctrl);
 void msm_sensor_group_hold_on(struct msm_sensor_ctrl_t *s_ctrl);
 void msm_sensor_group_hold_off(struct msm_sensor_ctrl_t *s_ctrl);
-
+void msm_sensor_group_hold_on_hdr(struct msm_sensor_ctrl_t *s_ctrl);
+void msm_sensor_group_hold_off_hdr(struct msm_sensor_ctrl_t *s_ctrl);
 int32_t msm_sensor_set_fps(struct msm_sensor_ctrl_t *s_ctrl,
 			struct fps_cfg   *fps);
 int32_t msm_sensor_write_exp_gain1(struct msm_sensor_ctrl_t *s_ctrl,
@@ -371,7 +373,7 @@ int32_t msm_sensor_adjust_frame_lines(struct msm_sensor_ctrl_t *s_ctrl,
 struct file* msm_fopen(const char* path, int flags, int rights);
 int msm_fwrite(struct file* file, unsigned long long offset, unsigned char* data, unsigned int size);
 void msm_fclose(struct file* file);
-void msm_dump_otp_to_file(const char* sensor_name, const short* add, const uint8_t* data, size_t count);
+void msm_dump_otp_to_file(const char* sensor_name, const short* add, const uint8_t* data, size_t count);  
 
 
 

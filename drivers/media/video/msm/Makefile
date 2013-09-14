@@ -8,14 +8,12 @@ ifeq ($(CONFIG_MSM_CAMERA_V4L2),y)
   EXTRA_CFLAGS += -Idrivers/media/video/msm/io
   EXTRA_CFLAGS += -Idrivers/media/video/msm/sensors
   obj-$(CONFIG_MSM_CAMERA) += msm_isp.o msm.o msm_mem.o msm_mctl.o msm_mctl_buf.o msm_mctl_pp.o
-  obj-$(CONFIG_MSM_CAMERA) += rawchip/ io/ sensors/ actuators/ csi/
-  obj-$(CONFIG_RAWCHIPII) += yushanII/
+  obj-$(CONFIG_MSM_CAMERA) += rawchip/ yushanII/ io/ sensors/ actuators/ csi/
   obj-$(CONFIG_MSM_CAMERA) += msm_gesture.o
 else
   obj-$(CONFIG_MSM_CAMERA) += msm_camera.o
 endif
-obj-$(CONFIG_MSM_CAMERA) += msm_axi_qos.o gemini/
-obj-$(CONFIG_RAWCHIPII) += swfv/
+obj-$(CONFIG_MSM_CAMERA) += msm_axi_qos.o gemini/ swfv/
 obj-$(CONFIG_MSM_CAMERA_FLASH) += flash.o
 obj-$(CONFIG_ARCH_MSM_ARM11) += msm_vfe7x.o msm_io7x.o
 ifeq ($(CONFIG_MSM_CAMERA_V4L2),y)
