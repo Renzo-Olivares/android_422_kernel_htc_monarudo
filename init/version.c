@@ -38,9 +38,9 @@ struct uts_namespace init_uts_ns = {
 EXPORT_SYMBOL_GPL(init_uts_ns);
 
 const char linux_banner[] =
-  "Linux version " UTS_RELEASE " (root@abm009) (" LINUX_COMPILER ") " UTS_VERSION "\n";
+  "Linux version " UTS_RELEASE " (root@abm011) (" LINUX_COMPILER ") " UTS_VERSION "\n";
 
 const char linux_proc_banner[] =
 	"%s version %s"
-        " (root@abm009)"
+        " (root@abm011)"
 	" (" LINUX_COMPILER ") %s\n";
