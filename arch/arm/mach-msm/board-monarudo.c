@@ -163,8 +163,6 @@ extern void hdmi_hpd_feature(int enable);
 #define TPA6185_I2C_SLAVE_ADDR	(0xC6 >> 1)
 #define RT5501_I2C_SLAVE_ADDR	(0xF0 >> 1)
 
-unsigned skuid;
-
 #define PM8XXX_GPIO_INIT(_gpio, _dir, _buf, _val, _pull, _vin, _out_strength, \
 			_func, _inv, _disable) \
 { \
