@@ -853,12 +853,16 @@ static int pm8921_is_wireless_charger(void)
 		return 0;
 }
 
+static int critical_alarm_voltage_mv[] = {3000, 3100, 3200, 3400};
+
 static struct htc_battery_platform_data htc_battery_pdev_data = {
 	.guage_driver = 0,
 	.chg_limit_active_mask = HTC_BATT_CHG_LIMIT_BIT_TALK |
-								HTC_BATT_CHG_LIMIT_BIT_NAVI,
+								HTC_BATT_CHG_LIMIT_BIT_NAVI |
+								HTC_BATT_CHG_LIMIT_BIT_THRML,
 	.critical_low_voltage_mv = 3100,
-	.critical_alarm_voltage_mv = 3000,
+	.critical_alarm_vol_ptr = critical_alarm_voltage_mv,
+	.critical_alarm_vol_cols = sizeof(critical_alarm_voltage_mv) / sizeof(int),
 	.overload_vol_thr_mv = 4000,
 	.overload_curr_thr_ma = 0,
 	.smooth_chg_full_delay_min = 1,
@@ -1201,17 +1205,6 @@ static struct pm8xxx_gpio_init switch_to_mhl_pmic_gpio_table[] = {
                          PM_GPIO_FUNC_NORMAL, 0, 0),
 };
 
-static struct pm8xxx_gpio_init switch_to_usb_headset_pmic_gpio_table[] = {
-        PM8XXX_GPIO_INIT(AUDIOz_MHL_SW, PM_GPIO_DIR_OUT,
-                         PM_GPIO_OUT_BUF_CMOS, 0, PM_GPIO_PULL_NO,
-                         PM_GPIO_VIN_S4, PM_GPIO_STRENGTH_LOW,
-                         PM_GPIO_FUNC_NORMAL, 0, 0),
-        PM8XXX_GPIO_INIT(USBz_AUDIO_SW, PM_GPIO_DIR_OUT,
-                         PM_GPIO_OUT_BUF_CMOS, 1, PM_GPIO_PULL_NO,
-                         PM_GPIO_VIN_S4, PM_GPIO_STRENGTH_LOW,
-                         PM_GPIO_FUNC_NORMAL, 0, 0),
-};
-
 static void config_gpio_table(uint32_t *table, int len)
 {
 	int n, rc;
@@ -1227,46 +1220,14 @@ static void config_gpio_table(uint32_t *table, int len)
 
 static void monarudo_usb_dpdn_switch(int path)
 {
-	static int aud_in = 0;
 	switch (path) {
 	case PATH_USB:
+		pm8xxx_gpio_config(switch_to_usb_pmic_gpio_table[0].gpio, &switch_to_usb_pmic_gpio_table[0].config);
+		break;
 	case PATH_MHL:
-	{
-		int i;
-		int polarity = 1; 
-		int mhl = (path == PATH_MHL);
-		if (aud_in == 1) {
-			gpio_tlmm_config(GPIO_CFG(UART_TX, 2, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-			gpio_tlmm_config(GPIO_CFG(UART_RX, 1, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-			aud_in = 0;
-		}
-
-		if ((mhl ^ !polarity))
-			for(i=0; i<ARRAY_SIZE(switch_to_mhl_pmic_gpio_table); i++)
-				pm8xxx_gpio_config(switch_to_mhl_pmic_gpio_table[i].gpio,
-						&switch_to_mhl_pmic_gpio_table[i].config);
-		else
-			for(i=0; i<ARRAY_SIZE(switch_to_usb_pmic_gpio_table); i++)
-				pm8xxx_gpio_config(switch_to_usb_pmic_gpio_table[i].gpio,
-						&switch_to_usb_pmic_gpio_table[i].config);
-		pr_info("[CABLE] XA %s: Set %s path\n", __func__, mhl ? "MHL" : "USB");
+		pm8xxx_gpio_config(switch_to_mhl_pmic_gpio_table[0].gpio, &switch_to_mhl_pmic_gpio_table[0].config);
 		break;
 	}
-	case PATH_USB_AUD:
-	{
-		int i;
-		aud_in = 1;
-		gpio_tlmm_config(GPIO_CFG(UART_TX, 0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-		gpio_tlmm_config(GPIO_CFG(UART_RX, 0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
-
-		for(i=0; i<ARRAY_SIZE(switch_to_usb_headset_pmic_gpio_table); i++)
-			pm8xxx_gpio_config(switch_to_usb_headset_pmic_gpio_table[i].gpio,
-					&switch_to_usb_headset_pmic_gpio_table[i].config);
-		pr_info("[CABLE] usb dpdn switch usb_aud\n");
-		break;
-	}
-	}
-
 	sii9234_change_usb_owner((path == PATH_MHL) ? 1 : 0);
 }
 
@@ -1417,13 +1378,9 @@ static int mhl_sii9234_power(int on)
 		break;
 	case 1:
 		mhl_sii9234_all_power(true);
-		if (system_rev <= XB)
-			config_gpio_table(mhl_gpio_table_xb, ARRAY_SIZE(mhl_gpio_table_xb));
-		else if (system_rev >= XC) {
-			config_gpio_table(mhl_gpio_table_xc, ARRAY_SIZE(mhl_gpio_table_xc));
-			pm8xxx_gpio_config(mhl_pmic_gpio_xc[0].gpio,
-					&mhl_pmic_gpio_xc[0].config);
-		}
+		config_gpio_table(mhl_gpio_table_xc, ARRAY_SIZE(mhl_gpio_table_xc));
+		pm8xxx_gpio_config(mhl_pmic_gpio_xc[0].gpio,
+				&mhl_pmic_gpio_xc[0].config);
 		break;
 	default:
 		pr_warning("%s(%d) got unsupport parameter!!!\n", __func__, on);
@@ -1563,74 +1520,10 @@ out:
 	return 0;
 }
 
-static int monarudo_usb_product_id_match_array[] = {
-        0x0ff8, 0x0e44, 
-        0x0fa4, 0x0e9f, 
-        0x0fa5, 0x0ea0, 
-        0x0f91, 0x0ebd, 
-        -1,
-};
-
-static int monarudo_usb_product_id_rndis[] = {
-	0x073c, 
-	0x0742, 
-	0x073d, 
-	0x0743, 
-	0x0740, 
-	0x0746, 
-	0x0741, 
-	0x0747, 
-};
-
-static int monarudo_usb_product_id_match(int product_id, int intrsharing)
-{
-        int *pid_array = monarudo_usb_product_id_match_array;
-        int *rndis_array = monarudo_usb_product_id_rndis;
-	int category = 0;
-
-        if (!pid_array)
-                return product_id;
-
-        
-        if (board_mfg_mode())
-                return product_id;
-
-        while (pid_array[0] >= 0) {
-                if (product_id == pid_array[0])
-                        return pid_array[1];
-                pid_array += 2;
-        }
-
-	switch (product_id) {
-	case 0x0fb4: 
-		category = 0;
-		break;
-	case 0x0fb5: 
-		category = 1;
-		break;
-	case 0x0f8e: 
-		category = 2;
-		break;
-	case 0x0f8f: 
-		category = 3;
-		break;
-	default:
-		category = -1;
-		break;
-	}
-
-	if (category != -1) {
-		if (intrsharing)
-			return rndis_array[category * 2 + 1];
-		else
-			return rndis_array[category * 2];
-	}
-        return product_id;
-}
-
 static struct android_usb_platform_data android_usb_pdata = {
 	.vendor_id	= 0x0BB4,
-	.product_id	= 0x0dff,
+	
+	.product_id	= 0x0dea,
 	.version	= 0x0100,
 	.product_name		= "Android Phone",
 	.manufacturer_name	= "HTC",
@@ -1640,11 +1533,10 @@ static struct android_usb_platform_data android_usb_pdata = {
 	.functions = usb_functions_all,
 	.update_pid_and_serial_num = usb_diag_update_pid_and_serial_num,
 	.usb_id_pin_gpio = USB1_HS_ID_GPIO_XA_XB,
-	.usb_rmnet_interface = "HSIC,HSIC",
+	.usb_rmnet_interface = "HSIC:HSIC",
 	.usb_diag_interface = "diag,diag_mdm",
 	.fserial_init_string = "HSIC:modem,tty,tty:autobot,tty:serial,tty:autobot",
 	.serial_number = "000000000000",
-        .match = monarudo_usb_product_id_match,
 	.nluns		= 1,
 };
 
@@ -1845,26 +1737,35 @@ void monarudo_pm8xxx_adc_device_register(void)
 
 void monarudo_add_usb_devices(void)
 {
+	int rc;
 	printk(KERN_INFO "%s rev: %d\n", __func__, system_rev);
+
+	if (system_rev >= PVT) {
+		rc = pm8xxx_gpio_config(otg_pmic_gpio_pvt[0].gpio,
+				&otg_pmic_gpio_pvt[0].config);
+		if (rc)
+			pr_info("[USB_BOARD] %s: Config ERROR: GPIO=%u, rc=%d\n",
+					__func__, otg_pmic_gpio_pvt[0].gpio, rc);
+	}
 
 	android_usb_pdata.products[0].product_id =
 			android_usb_pdata.product_id;
 
 	
-	if (get_radio_flag() & RADIO_FLAG_RESERVE_17)
+	if (get_radio_flag() & RADIO_FLAG_RESERVE_17) {
 		android_usb_pdata.diag_init = 1;
+		android_usb_pdata.modem_init = 1;
+		android_usb_pdata.rmnet_init = 1;
+	}
 
 	
 	if (board_mfg_mode() == 0) {
-		android_usb_pdata.nluns = 2;
-		android_usb_pdata.cdrom_lun = 0x3;
+		android_usb_pdata.nluns = 1;
+		android_usb_pdata.cdrom_lun = 0x1;
 	}
 	android_usb_pdata.serial_number = board_serialno();
 
-	if (system_rev == XA || system_rev == XB) 
-		android_usb_pdata.usb_id_pin_gpio = USB1_HS_ID_GPIO_XA_XB;
-	else
-		android_usb_pdata.usb_id_pin_gpio = PM8921_GPIO_PM_TO_SYS(USB1_HS_ID_GPIO_XC);
+	android_usb_pdata.usb_id_pin_gpio = PM8921_GPIO_PM_TO_SYS(USB1_HS_ID_GPIO_XC);
 
 	platform_device_register(&apq8064_device_gadget_peripheral);
 	platform_device_register(&android_usb_device);
@@ -4529,33 +4430,18 @@ static struct i2c_registry monarudo_i2c_devices[] __initdata = {
 };
 
 #ifdef CONFIG_RESET_BY_CABLE_IN
-static uint32_t ac_reset_xb_gpio_table[] = {
-	GPIO_CFG(AC_WDT_RST_XB, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
-};
 static uint32_t ac_reset_xc_gpio_table[] = {
 	GPIO_CFG(AC_WDT_RST_XC, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
 };
 
 void reset_dflipflop(void)
 {
-	
-	if (system_rev == XB) {
-		gpio_tlmm_config(ac_reset_xb_gpio_table[0], GPIO_CFG_ENABLE);
-		gpio_set_value(AC_WDT_RST_XB, 0);
-		pr_info("[CABLE] Clear D Flip-Flop\n");
-		udelay(100);
-		gpio_set_value(AC_WDT_RST_XB, 1);
-		pr_info("[CABLE] Restore D Flip-Flop\n");
-	}
-	
-	if (system_rev > XB) {
-		gpio_tlmm_config(ac_reset_xc_gpio_table[0], GPIO_CFG_ENABLE);
-		gpio_set_value(AC_WDT_RST_XC, 0);
-		pr_info("[CABLE] Clear D Flip-Flop\n");
-		udelay(100);
-		gpio_set_value(AC_WDT_RST_XC, 1);
-		pr_info("[CABLE] Restore D Flip-Flop\n");
-	}
+	gpio_tlmm_config(ac_reset_xc_gpio_table[0], GPIO_CFG_ENABLE);
+	gpio_set_value(AC_WDT_RST_XC, 0);
+	pr_info("[CABLE] Clear D Flip-Flop\n");
+	udelay(100);
+	gpio_set_value(AC_WDT_RST_XC, 1);
+	pr_info("[CABLE] Restore D Flip-Flop\n");
 }
 #endif
 
@@ -4583,11 +4469,8 @@ static void __init register_i2c_devices(void)
 
 #ifdef CONFIG_FB_MSM_HDMI_MHL
 #ifdef CONFIG_FB_MSM_HDMI_MHL_SII9234
-	
-	if (system_rev <= XB)
-		mhl_sii9234_device_data.gpio_reset = MHL_RSTz_XA;
-	else if (system_rev >= XC)
-		mhl_sii9234_device_data.gpio_reset = PM8921_GPIO_PM_TO_SYS(MHL_RSTz_XC_XD);
+
+	mhl_sii9234_device_data.gpio_reset = PM8921_GPIO_PM_TO_SYS(MHL_RSTz_XC_XD);
 #endif
 #endif
 	
@@ -4676,20 +4559,10 @@ static void __init monarudo_common_init(void)
 	monarudo_init_gpiomux();
 #ifdef CONFIG_RESET_BY_CABLE_IN
 	pr_info("[CABLE] Enable Ac Reset Function.(%d) \n", system_rev);
-	
-	if (system_rev == XB) {
-		gpio_tlmm_config(ac_reset_xb_gpio_table[0], GPIO_CFG_ENABLE);
-		gpio_set_value(AC_WDT_RST_XB, 1);
-	}
-	
-	if (system_rev > XB) {
 		gpio_tlmm_config(ac_reset_xc_gpio_table[0], GPIO_CFG_ENABLE);
 		gpio_set_value(AC_WDT_RST_XC, 1);
 	}
 #endif
-	
-	if (system_rev == XB)
-		nfc_platform_data.firm_gpio = PM8921_GPIO_PM_TO_SYS(NFC_DL_MODE_XA_XB);
 
 	monarudo_i2c_init();
 
