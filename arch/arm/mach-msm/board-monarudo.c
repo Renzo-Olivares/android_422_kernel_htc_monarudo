@@ -899,6 +899,10 @@ static struct htc_battery_platform_data htc_battery_pdev_data = {
 	.igauge.enable_lower_voltage_alarm = pm8xxx_batt_lower_alarm_enable,
 	.igauge.set_lower_voltage_alarm_threshold =
 						pm8xxx_batt_lower_alarm_threshold_set,
+
+#ifdef CONFIG_THERMAL_TSENS8960
+	.get_thermal_sensor_temp = tsens_get_sensor_temp,
+#endif
 };
 static struct platform_device htc_battery_pdev = {
 	.name = "htc_battery",
