@@ -1735,6 +1735,13 @@ void monarudo_pm8xxx_adc_device_register(void)
 	monarudo_cable_detect_register();
 }
 
+struct pm8xxx_gpio_init otg_pmic_gpio_pvt[] = {
+	PM8XXX_GPIO_INIT(VREG_S4_1V8_PVT, PM_GPIO_DIR_OUT,
+			 PM_GPIO_OUT_BUF_CMOS, 0, PM_GPIO_PULL_NO,
+			 PM_GPIO_VIN_S4, PM_GPIO_STRENGTH_LOW,
+			 PM_GPIO_FUNC_NORMAL, 0, 0),
+};
+
 void monarudo_add_usb_devices(void)
 {
 	int rc;
