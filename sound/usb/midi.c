@@ -1008,10 +1008,10 @@ static int snd_usbmidi_output_close(struct snd_rawmidi_substream *substream)
 	struct snd_usb_midi* umidi = substream->rmidi->private_data;
 	struct usbmidi_out_port *port = substream->runtime->private_data;
 
+ 	substream_open(substream, 0);
 	if (port->autopm_reference)
-		usb_autopm_put_interface(umidi->iface)
-	usb_autopm_put_interface(umidi->iface);
-	return 0;
+		usb_autopm_put_interface(umidi->iface);
+ 	return 0;
 }
 
 static void snd_usbmidi_output_trigger(struct snd_rawmidi_substream *substream, int up)
