@@ -213,6 +213,7 @@ int __init monarudo_init_keypad(void);
 #define NC_PMGPIO_31		PMGPIO(31)
 #define NC_PMGPIO_32		PMGPIO(32)
 #define LCD_ID0_XA_XB			PMGPIO(33)
+#define CABLE_IN_N		PMGPIO(32)
 #define BT_HOST_WAKE_XC		PMGPIO(33)
 #define AUD_WCD_RESET_N		PMGPIO(34)
 #define LCD_ID1_XA_XB			PMGPIO(35)
